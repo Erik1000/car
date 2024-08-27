@@ -38,6 +38,7 @@ dependencies {
 cargo {
     module  = '..'
     libname = 'rustapp'
+    pythonCommand = "python3"
     profile = gradle.startParameter.taskNames.any{it.toLowerCase().contains("debug")} ? "debug" : "release"
     targets = ['arm64'] // 'arm', 'arm64', 'x86', 'x86_64'
 }
