@@ -38,10 +38,10 @@ fn main() -> anyhow::Result<()> {
     let pins = periphierals.pins;
 
     let radio = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
-        pins.gpio20,
+        pins.gpio10,
     ))?));
     let engine = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
-        pins.gpio10,
+        pins.gpio20,
     ))?));
     let ignition = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
         pins.gpio7,
@@ -260,7 +260,7 @@ impl ExampleServer {
                 self.radio.lock().unwrap().set_high().unwrap();
                 self.engine.lock().unwrap().set_high().unwrap();
                 self.ignition.lock().unwrap().set_high().unwrap();
-                FreeRtos::delay_ms(1000 * 3);
+                FreeRtos::delay_ms(1000);
                 self.ignition.lock().unwrap().set_low().unwrap();
                 state = 2;
             }
