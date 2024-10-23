@@ -38,14 +38,17 @@ fn main() -> anyhow::Result<()> {
     let pins = periphierals.pins;
 
     let radio = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
-        pins.gpio10,
-    ))?));
-    let engine = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
         pins.gpio20,
     ))?));
-    let ignition = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
-        pins.gpio21,
+    let engine = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
+        pins.gpio10,
     ))?));
+    let ignition = Arc::new(Mutex::new(PinDriver::output(AnyOutputPin::from(
+        pins.gpio7,
+    ))?));
+
+    // adc radio engine ignition
+    //     gpio1 gpio3  gpio4
 
     let bt = Arc::new(BtDriver::new(periphierals.modem, Some(nvs.clone()))?);
     let server = ExampleServer::new(
