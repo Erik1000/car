@@ -1,0 +1,108 @@
+use embassy_futures::join::join3;
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+use embassy_time::{Duration, Timer};
+use esp_hal::gpio::{GpioPin, Input, InputPin, Level, Pull};
+use log::info;
+
+use crate::schema::KeyPosition;
+
+pub static SIGNAL_KEY_POSITION: Signal<CriticalSectionRawMutex, KeyPosition> = Signal::new();
+
+const RADIO_IN_PIN: u8 = 1;
+const ENGINE_IN_PIN: u8 = 3;
+const IGNITION_IN_PIN: u8 = 4;
+
+/// Checks and listens for the position of the physical key in the car next to the stearing wheel
+pub struct KeyListener<'d> {
+    radio: Debounced<'d, RADIO_IN_PIN>,
+    // engine has two pins that are switched at the same time but we only listen for one because they are switched at the same time anyway
+    engine: Debounced<'d, ENGINE_IN_PIN>,
+    ignition: Debounced<'d, IGNITION_IN_PIN>,
+}
+
+impl<'d> KeyListener<'d> {
+    pub fn new(
+        radio: GpioPin<RADIO_IN_PIN>,
+        engine: GpioPin<ENGINE_IN_PIN>,
+        ignition: GpioPin<IGNITION_IN_PIN>,
+    ) -> Self {
+        Self {
+            radio: radio.into(),
+            engine: engine.into(),
+            ignition: ignition.into(),
+        }
+    }
+    pub async fn listen(&mut self) {
+        // listen for state change
+        loop {
+            let res = join3(
+                self.radio.wait_for_stable_state(),
+                self.engine.wait_for_stable_state(),
+                self.ignition.wait_for_stable_state(),
+            )
+            .await;
+            info!("key: {res:?}");
+
+            // FIXME: ensure key position does not turn off between engine and ignition
+            let key_position = match res {
+                (Level::Low, Level::Low, Level::Low) => KeyPosition::Off,
+                (Level::High, Level::Low, Level::Low) => KeyPosition::Radio,
+                (_, Level::High, Level::Low) => KeyPosition::Engine,
+                (_, _, Level::High) => KeyPosition::Ignition,
+            };
+            info!("Key position is {key_position:?}");
+            SIGNAL_KEY_POSITION.signal(key_position);
+        }
+    }
+}
+
+impl<const P: u8> From<GpioPin<P>> for Debounced<'_, P>
+where
+    GpioPin<P>: InputPin,
+{
+    fn from(pin: GpioPin<P>) -> Self {
+        // uses some default values
+        Self::new(pin, 20, Duration::from_millis(10))
+    }
+}
+
+struct Debounced<'d, const P: u8> {
+    pin: Input<'d, GpioPin<P>>,
+    previous_state: Level,
+    debounce_count: u8,
+    threshold: u8,
+    interval: Duration,
+}
+
+impl<'d, const P: u8> Debounced<'d, P>
+where
+    GpioPin<P>: InputPin,
+{
+    pub fn new(pin: GpioPin<P>, threshold: u8, interval: Duration) -> Self {
+        Debounced {
+            pin: Input::new_typed(pin, Pull::Down),
+            previous_state: Level::Low,
+            debounce_count: 0,
+            threshold,
+            interval,
+        }
+    }
+
+    pub async fn wait_for_stable_state(&mut self) -> Level {
+        loop {
+            let current_state = self.pin.get_level();
+            if current_state == self.previous_state {
+                self.debounce_count += 1;
+                if self.debounce_count >= self.threshold {
+                    // state is stable
+                    self.debounce_count = 0;
+                    return self.previous_state;
+                }
+            } else {
+                self.debounce_count = 0;
+                self.previous_state = current_state;
+            }
+            Timer::after(self.interval).await;
+        }
+    }
+}
