@@ -12,17 +12,28 @@ pub enum KeyPosition {
     Ignition,
 }
 
+impl KeyPosition {
+    pub fn as_engine_state(&self) -> EngineState {
+        match self {
+            Self::Off => EngineState::Off,
+            Self::Radio => EngineState::Radio,
+            Self::Engine => EngineState::Engine,
+            Self::Ignition => EngineState::Running,
+        }
+    }
+}
 /// State of the engine
 ///
 /// Represents the actual engine state of the car. Difference to [`KeyPosition`]
 /// is that while a key is only in [`KeyPosition::Ignition`] while starting the
 /// car and then returns to [`KeyPosition::Engine`] this enum will stay in
 /// [`EngineState::Running`] as long as the engine is actual running
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Deserialize, Serialize, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
+#[repr(u8)]
 pub enum EngineState {
-    Off,
-    Radio,
-    Engine,
-    Running,
+    Off = 0,
+    Radio = 1,
+    Engine = 2,
+    Running = 3,
 }
