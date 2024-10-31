@@ -6,11 +6,13 @@ use core::{
 
 use appearance::GENERIC_UNKNOWN;
 use embassy_futures::join::join3;
-use embassy_time::Timer;
 use log::{error, info, warn};
 use trouble_host::prelude::*;
 
-use crate::{relay::SIGNAL_ENGINE_STATE, schema::EngineState};
+use crate::{
+    relay::{SIGNAL_BLE_STATE_CHANGE, SIGNAL_ENGINE_STATE},
+    schema::EngineState,
+};
 
 /// Size of L2CAP packets (ATT MTU is this - 4)
 const L2CAP_MTU: usize = 251;
@@ -21,13 +23,13 @@ const CONNECTIONS_MAX: usize = 1;
 /// Max number of L2CAP channels.
 const L2CAP_CHANNELS_MAX: usize = 2; // Signal + att
 
-const MAX_ATTRIBUTES: usize = 10;
+//const MAX_ATTRIBUTES: usize = 10;
 
 type Resources<C> = HostResources<C, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX, L2CAP_MTU>;
 
 pub const ADDRESS: [u8; 6] = [0x94, 0xf1, 0xa0, 0x77, 0x4b, 0x6e];
 
-pub const KEY_SERVICE_UUID: [u8; 16] = [
+pub const ENGINE_SERVICE_UUID: [u8; 16] = [
     0x0e, 0x35, 0x35, 0x31, 0x51, 0x59, 0x42, 0xa0, 0x92, 0xff, 0x38, 0xe9, 0xe4, 0x9a, 0xb7, 0xd1,
 ];
 
@@ -101,21 +103,25 @@ async fn gatt_task<C: Controller>(
                             return value[0];
                         }
                     };
-                    SIGNAL_ENGINE_STATE.signal(engine_state);
+                    SIGNAL_BLE_STATE_CHANGE.signal(engine_state);
                     value[0]
                 }) {
-                    Ok(v) => match server.notify(handle, &connection, &[v]).await {
-                        Ok(_) => (),
-                        Err(e) => error!("Error notifying: {e:?}"),
-                    },
+                    Ok(v) => {
+                        let _ = server.set(server.engine_service.engine_state, &[v]);
+                        match server.notify(handle, &connection, &[v]).await {
+                            Ok(_) => (),
+                            Err(e) => error!("Error notifying: {e:?}"),
+                        }
+                    }
                     Err(e) => warn!("GATT write error: {e:?}"),
                 }
+                info!("done nothing for {handle:?}")
             }
             Ok(GattEvent::Read {
                 handle,
                 connection: _,
             }) => {
-                info!("[gatt] Read event on {:?}", handle);
+                info!("[gatt] Read on {handle:?}");
             }
             Err(e) => {
                 error!("[gatt] Error processing GATT events: {:?}", e);
@@ -131,8 +137,9 @@ async fn advertise_task<C: Controller>(
     info!("adv task running");
     let mut adv_data = [0u8; 31];
     let mut scan_data = [0u8; 31];
-    let mut service_uuid: [u8; 16] = KEY_SERVICE_UUID;
+    let mut service_uuid: [u8; 16] = ENGINE_SERVICE_UUID;
     // FIXME: for some reason, the service uuid is reversed in advertisements
+    // The macro reverses the UUID internally...
     service_uuid.reverse();
 
     AdStructure::encode_slice(
@@ -163,9 +170,17 @@ async fn advertise_task<C: Controller>(
             .await?;
         info!("sending adv: {adv_data:x?}");
 
-        let conn = advertiser.accept().await?;
-        while conn.is_connected() {
-            Timer::after_secs(1).await;
+        let connection = advertiser.accept().await?;
+        while connection.is_connected() {
+            let state = SIGNAL_ENGINE_STATE.wait().await;
+            server
+                .notify(
+                    server.engine_service.engine_state,
+                    &connection,
+                    &[state as u8],
+                )
+                .await
+                .ok();
         }
         info!("[adv] connection established");
     }
