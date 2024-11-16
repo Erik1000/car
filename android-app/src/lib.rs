@@ -12,8 +12,10 @@ pub mod android {
 
     use crate::service::{launch, watch};
 
+    // NOTE: Mind the `_1` to distingish the underscore _ from the underscore used to represent the dot in the java package name
+    // com.erik_tesar.car.remote -> com_erik_*1*tesar_car_remote
     #[no_mangle]
-    pub extern "system" fn Java_com_example_rustapp_RustService_startService(
+    pub extern "system" fn Java_com_erik_1tesar_car_remote_RustService_startService(
         _: JNIEnv,
         _: JClass,
         _: JString,
@@ -26,13 +28,15 @@ pub mod android {
 
         spawn(|| {
             watch(
-                "/data/user/0/com.example.rustapp/files/fsmon_log.yaml",
+                "/data/user/0/com.erik_tesar.car.remote/files/fsmon_log.yaml",
                 vec!["/storage/emulated/0/Documents"],
             );
         });
 
         spawn(|| {
-            launch("/data/user/0/com.example.rustapp/files/fsmon_log.yaml");
+            launch(
+                "/data/user/0/com.erik_tesar.car.remote/files/fsmon_log.yaml",
+            );
         });
     }
 }

@@ -1,4 +1,4 @@
-package com.example.rustapp;
+package com.erik_tesar.car.remote;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -8,12 +8,14 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
 
+import com.erik_tesar.car.remote.R;
+
 public class RustService extends Service {
     private static final String CHANNEL_ID = "RustServiceChannel";
     private static final int NOTIFICATION_ID = 1;
 
     static {
-        System.loadLibrary("rustapp");
+        System.loadLibrary("car_remote");
     }
 
     private static native void startService(String filesDir);

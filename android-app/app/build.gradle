@@ -1,15 +1,15 @@
 plugins {
-    id 'com.android.application' version '8.0.2'
+    id 'com.android.application' version '8.5.2'
     id 'org.mozilla.rust-android-gradle.rust-android' version '0.9.3'
 }
 
 android {
-    namespace 'com.example.rustapp'
+    namespace 'com.erik_tesar.car.remote'
     compileSdk 33
     ndkVersion '25.2.9519653'
 
     defaultConfig {
-        applicationId "com.example.rustapp"
+        applicationId "com.erik_tesar.car.remote"
         minSdk 24
         targetSdk 33
         versionCode 1
@@ -37,7 +37,7 @@ dependencies {
 
 cargo {
     module  = '..'
-    libname = 'rustapp'
+    libname = 'car_remote'
     pythonCommand = "python3"
     profile = gradle.startParameter.taskNames.any{it.toLowerCase().contains("debug")} ? "debug" : "release"
     targets = ['arm64'] // 'arm', 'arm64', 'x86', 'x86_64'
