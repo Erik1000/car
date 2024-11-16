@@ -8,9 +8,9 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
-        android:icon="@mipmap/ic_launcher"
-        android:label="Rust App"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@drawable/auto"
+        android:label="Car Remote"
+        android:roundIcon="@drawable/auto"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar">
         <activity
             android:name=".MainActivity"
@@ -21,8 +21,8 @@
             </intent-filter>
         </activity>
         <service
-            android:label="Rust Service"
-            android:name=".RustService" />
+            android:label="Car Remote"
+            android:name="com.erik_tesar.car.remote.RustService" />
     </application>
 
 </manifest>

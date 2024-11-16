@@ -1,4 +1,4 @@
-package com.example.rustapp;
+package com.erik_tesar.car.remote;
 
 import android.content.Intent;
 import android.os.Build;
