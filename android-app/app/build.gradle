@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "com.erik_tesar.car.remote"
-        minSdk 24
+        minSdk 33
         targetSdk 33
         versionCode 1
         versionName "1.0"

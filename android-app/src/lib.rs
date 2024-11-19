@@ -6,9 +6,11 @@ pub mod android {
 
     use android_logger::{self, init_once};
     use jni::{
-        objects::{JClass, JString},
+        objects::{JClass, JObject, JString},
+        sys::jint,
         JNIEnv,
     };
+    use log::{error, info};
 
     use crate::service::{launch, watch};
 
@@ -16,27 +18,34 @@ pub mod android {
     // com.erik_tesar.car.remote -> com_erik_*1*tesar_car_remote
     #[no_mangle]
     pub extern "system" fn Java_com_erik_1tesar_car_remote_RustService_startService(
-        _: JNIEnv,
-        _: JClass,
-        _: JString,
+        mut env: JNIEnv,
+        this: JClass,
+        //callback: JObject, //_: JString,
     ) {
         init_once(
             android_logger::Config::default()
                 .with_max_level(log::LevelFilter::Trace)
                 .with_tag("RustApp"),
         );
+        info!("Class is {this:#?}");
+        let res: jint = 4;
 
-        spawn(|| {
-            watch(
-                "/data/user/0/com.erik_tesar.car.remote/files/fsmon_log.yaml",
-                vec!["/storage/emulated/0/Documents"],
-            );
-        });
+        //env.call_method(callback, "factCallback", "(I)V", &[res.into()])
+        match env.call_method(this, "factCallback", "(I)V", &[res.into()]) {
+            Ok(_) => info!("Worked!"),
+            Err(e) => error!("Failed: {e:?}"),
+        }
+        // spawn(|| {
+        //     watch(
+        //         "/data/user/0/com.erik_tesar.car.remote/files/fsmon_log.yaml",
+        //         vec!["/storage/emulated/0/Documents"],
+        //     );
+        // });
 
-        spawn(|| {
-            launch(
-                "/data/user/0/com.erik_tesar.car.remote/files/fsmon_log.yaml",
-            );
-        });
+        // spawn(|| {
+        //     launch(
+        //         "/data/user/0/com.erik_tesar.car.remote/files/fsmon_log.yaml",
+        //     );
+        // });
     }
 }
