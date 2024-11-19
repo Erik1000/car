@@ -4,9 +4,11 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 
 import com.erik_tesar.car.remote.R;
 
@@ -18,8 +20,11 @@ public class RustService extends Service {
         System.loadLibrary("car_remote");
     }
 
-    private static native void startService(String filesDir);
+    private native void startService();
 
+    public void factCallback(int res) {
+        Log.e("Rust", "Callback with " + res);
+    }
     @Override
     public void onCreate() {
         super.onCreate();
@@ -32,8 +37,11 @@ public class RustService extends Service {
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
 
-        startService(this.getFilesDir().toString());
+        //startService(this.getFilesDir().toString());
+        Log.i("Rust", String.valueOf(this));
+        startService();
 
+        Log.i("Rust", "Service started!");
         return START_STICKY;
     }
 
@@ -48,26 +56,26 @@ public class RustService extends Service {
     }
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
-                    "Rust Service Channel", NotificationManager.IMPORTANCE_DEFAULT);
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
+                "Rust Service Channel", NotificationManager.IMPORTANCE_HIGH);
 
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(channel);
-        }
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        manager.createNotificationChannel(channel);
     }
 
     private Notification buildNotification() {
         Notification.Builder builder;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder = new Notification.Builder(this, CHANNEL_ID);
-        } else {
-            builder = new Notification.Builder(this);
-        }
+        builder = new Notification.Builder(this, CHANNEL_ID);
 
         builder.setContentTitle("Rust Service").setContentText("Running...")
-                .setSmallIcon(R.mipmap.ic_launcher).setPriority(Notification.PRIORITY_DEFAULT);
+                .setSmallIcon(R.mipmap.ic_launcher).setOngoing(true);
 
         return builder.build();
+    }
+
+    class Response {
+        public void answer(int res) {
+            Log.i("Res", "Got answer non static " + res);
+        }
     }
 }
