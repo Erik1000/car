@@ -1,0 +1,10 @@
+.vscode
+
+.gradle
+build
+app/build
+
+target
+.idea
+local.properties
+Cargo.lock

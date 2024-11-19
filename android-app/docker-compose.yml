@@ -1,0 +1,7 @@
+services:
+  android:
+    image: subcom/rust_android:2024.01.20
+    build: 
+      context: .
+    volumes:
+      - .:/app

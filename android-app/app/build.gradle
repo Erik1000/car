@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application' version '8.5.2'
+    id 'org.mozilla.rust-android-gradle.rust-android' version '0.9.3'
+}
+
+android {
+    namespace 'com.erik_tesar.car.remote'
+    compileSdk 33
+    ndkVersion '25.2.9519653'
+
+    defaultConfig {
+        applicationId "com.erik_tesar.car.remote"
+        minSdk 33
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+  
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+}
+
+cargo {
+    module  = '..'
+    libname = 'car_remote'
+    pythonCommand = "python3"
+    profile = gradle.startParameter.taskNames.any{it.toLowerCase().contains("debug")} ? "debug" : "release"
+    targets = ['arm64'] // 'arm', 'arm64', 'x86', 'x86_64'
+}
+
+preBuild.dependsOn 'cargoBuild'
