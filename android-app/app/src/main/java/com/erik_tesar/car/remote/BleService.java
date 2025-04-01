@@ -24,16 +24,13 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
 
 // permission ensured at start up
 @SuppressLint("MissingPermission")
 public class BleService extends Service {
     public static final String TAG = "BLE";
-    public static final ParcelUuid car_starter_service = new ParcelUuid(UUID.fromString("0e353531-5159-42a0-92ff-38e9e49ab7d1"));
+    public static final ParcelUuid CAR_STARTER_SERVICE = new ParcelUuid(UUID.fromString("0e353531-5159-42a0-92ff-38e9e49ab7d1"));
     public static final UUID CAR_STARTER_STATE_CHARACTERISTIC = UUID.fromString("13d24b59-3d13-4ef7-98db-e174869078e0");
     private static final String CHANNEL_ID = "BleServiceChannel";
     private static final int NOTIFICATION_ID = 2;
@@ -42,19 +39,18 @@ public class BleService extends Service {
 
     public BluetoothDevice car_starter = null;
 
-    private BluetoothLeScanner bluetoothLeScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
-    private Handler handler = new Handler();
-    private List<BluetoothDevice> leDeviceListAdapter = new ArrayList<>();
+    private final BluetoothLeScanner bluetoothLeScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
 
     private final IBinder binder = new BleBinder();
 
-    private ScanCallback leScanCallback = new ScanCallback() {
+
+    private final ScanCallback leScanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             BluetoothDevice device = result.getDevice();
             ScanRecord record = result.getScanRecord();
             if (record != null) {
-                if (record.getServiceUuids() != null && record.getServiceUuids().contains(car_starter_service)) {
+                if (record.getServiceUuids() != null && record.getServiceUuids().contains(CAR_STARTER_SERVICE)) {
                     if (car_starter != null && !car_starter.getAddress().equals( device.getAddress())) {
                         Log.w(TAG, "Found another device advertising car service: " + device.getName() + " " + device.getAddress());
                     }
@@ -69,7 +65,7 @@ public class BleService extends Service {
 
 
 
-    private BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
+    private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             if (newState == BluetoothGatt.STATE_CONNECTED) {
@@ -81,9 +77,10 @@ public class BleService extends Service {
         }
 
         private final Handler reconnectHandler = new Handler();
-        private final int RECONNECT_DELAY_MS = 5000; // Retry every 5 seconds
 
         private void reconnectToDeviceWithDelay() {
+            // Retry every 5 seconds
+            int RECONNECT_DELAY_MS = 5000;
             reconnectHandler.postDelayed(() -> {
                 if (car_starter != null) {
                     Log.i(TAG, "Retrying connection...");
@@ -121,7 +118,7 @@ public class BleService extends Service {
         if (car_starter != null) {
             Log.i(TAG, "Sending value to car starter: " + value);
             byte[] a = {value};
-            BluetoothGattCharacteristic c = bluetoothGatt.getService(car_starter_service.getUuid()).getCharacteristic(CAR_STARTER_STATE_CHARACTERISTIC);
+            BluetoothGattCharacteristic c = bluetoothGatt.getService(CAR_STARTER_SERVICE.getUuid()).getCharacteristic(CAR_STARTER_STATE_CHARACTERISTIC);
             c.setValue(a);
             bluetoothGatt.writeCharacteristic(c);
 
