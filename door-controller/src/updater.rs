@@ -93,21 +93,32 @@ where
             .to_owned();
         let boundary = ct.split_once("boundary=").ok_or(anyhow!("no boundary"))?.1;
         let stream = StreamChunker {
+            last_pending: 0,
             inner: conn,
             buffer: [0; 1024],
+            total_read: 0,
         };
 
         let mut multipart = Multipart::new(stream, boundary);
         let mut field = block_on(multipart.next_field())?.ok_or(anyhow!("no file uploaded"))?;
+        let mut update_data_found = false;
         log::info!("File name {:?}", field.file_name());
         loop {
             match block_on(field.chunk()) {
                 Ok(Some(bytes)) => {
-                    log::info!("{bytes:?}");
                     update.write(&bytes)?;
-                    let finished = update_info_load.fetch(&bytes, &mut update_info)?;
+                    if !update_data_found {
+                        let finished = match update_info_load.fetch(&bytes, &mut update_info) {
+                            Ok(t) => t,
+                            Err(e) => {
+                                log::error!("OTA Error: {e}");
+                                false
+                            }
+                        };
+                        update_data_found = finished;
+                        log::info!("Update state: {finished:?}")
+                    }
                     drop(bytes);
-                    log::info!("Update state: {finished:?}")
                 }
                 Ok(None) => {
                     log::info!("finished reading");
@@ -122,8 +133,7 @@ where
         }
         update.complete()?;
         log::warn!("Update completed: {update_info:#?}");
-
-        Ok(())
+        esp_idf_svc::hal::reset::restart();
     }
 }
 
@@ -134,6 +144,8 @@ unsafe impl<C> Send for StreamChunker<'_, C> where C: Connection {}
 pub struct StreamChunker<'a, C> {
     inner: &'a mut C,
     buffer: [u8; 1024],
+    last_pending: u8,
+    total_read: usize,
 }
 
 impl<C> Stream for StreamChunker<'_, C>
@@ -146,10 +158,23 @@ where
         _cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         let me = self.get_mut();
+
+        // The multipart library reads chunks until Pending is returned
+        // If the stream is always read (which it is in this implementation),
+        // it will load everything at once which will lead to out of memory errors
+        // this way at most 4 * 1024 should be read which works fine
+        // https://github.com/rwf2/multer/issues/62#issuecomment-2082388404
+        me.last_pending += 1;
+        if me.last_pending > 3 {
+            me.last_pending = 0;
+            return Poll::Pending;
+        }
+
         let read = match me.inner.read(&mut me.buffer) {
             Ok(read) => read,
             Err(e) => return Poll::Ready(Some(Err(anyhow!("Error: {e:#?}")))),
         };
+        me.total_read += read;
         log::info!("read {read} bytes from connection");
         if read == 0 {
             Poll::Ready(None)
@@ -157,5 +182,11 @@ where
             let bytes: Bytes = me.buffer[0..read].iter().cloned().collect();
             Poll::Ready(Some(Ok(bytes)))
         }
+    }
+}
+
+impl<C> Drop for StreamChunker<'_, C> {
+    fn drop(&mut self) {
+        log::info!("Total read in stream: {}", self.total_read);
     }
 }

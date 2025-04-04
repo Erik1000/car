@@ -19,16 +19,14 @@ fn main() -> anyhow::Result<()> {
     let sys_loop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
-    log::info!("Hello, world!");
-
     let mut ota = EspOta::new()?;
     let running_slot = ota.get_running_slot()?;
     log::info!("Running slot: {running_slot:?}");
     if running_slot.state != SlotState::Valid {
         ota.mark_running_slot_valid()?;
     }
+    drop(ota);
 
     updater::run_ota_update_mode(peripherals.modem, sys_loop, nvs)?;
-
     Ok(())
 }

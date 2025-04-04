@@ -20,14 +20,15 @@ opt-level = "z"
 [features]
 default = []
 
-experimental = ["esp-idf-svc/experimental"]
-
 [dependencies]
 log = "0.4"
-esp-idf-svc = { version = "0.51", features = ["critical-section", "embassy-time-driver", "embassy-sync", "embedded-storage"] }
+esp-idf-svc = { version = "0.51", features = ["critical-section", "embassy-time-driver", "embassy-sync", "embedded-storage", "experimental"] }
 anyhow = "1.0.97"
 multer = { version = "3.1.0", default-features = false }
 futures-core = { version = "0.3.31", default-features = false }
 
 [build-dependencies]
 embuild = "0.33"
+
+[patch.crates-io]
+esp-idf-svc = { git = "https://github.com/esp-rs/esp-idf-svc.git", rev = "83e117d14b11eeda81626b30ca396eba31008b57"}
