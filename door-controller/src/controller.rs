@@ -13,7 +13,11 @@ use esp_idf_svc::{
         },
         BdAddr, Ble, BtDriver, BtStatus, BtUuid,
     },
-    hal::delay::FreeRtos,
+    hal::{
+        delay::FreeRtos,
+        gpio::{Gpio14, Gpio25, Gpio26, Gpio27, Gpio32, Gpio33, Output, PinDriver},
+    },
+    nvs::{EspNvs, NvsDefault},
     sys::{EspError, ESP_FAIL},
 };
 
@@ -21,14 +25,31 @@ use log::*;
 
 const APP_ID: u16 = 0;
 const MAX_CONNECTIONS: usize = 2;
+const BLE_DEVICE_NAME: &str = "EriksDoorController";
 
-// Our service UUID
-pub const SERVICE_UUID: u128 = 0xad91b201734740479e173bed82d75f9d;
+// Service UUID for Door Controller
+pub const DOOR_SERVICE_UUID: u128 = 0x5eb5b1175231409ea1cab7689f488473;
 
-/// Our "recv" characteristic - i.e. where clients can send data.
-pub const RECV_CHARACTERISTIC_UUID: u128 = 0xb6fccb5087be44f3ae22f85485ea42c4;
-/// Our "indicate" characteristic - i.e. where clients can receive data if they subscribe to it
-pub const IND_CHARACTERISTIC_UUID: u128 = 0x503de214868246c4828fd59144da41be;
+// Used to initiate OTA update boot
+pub const OTA_CHAR_UUID: u128 = 0xe32a319fcfa44838aac359fde6058ee1;
+
+// relay 1 and 2
+// 1 GPIO32
+// 2 GPIO33
+// Recv only
+pub const DOOR_CHAR_UUID: u128 = 0x446f5ef8e88940988444e82331c92339;
+
+// Relay 3 and 4
+// 3 GPIO25
+// 4 GPIO26
+// Recv only
+pub const WINDOW_LEFT_CHAR_UUID: u128 = 0xb163c9c8b1ac445a8232b7b462bf6b91;
+
+// Relay 5 and 6
+// 5 GPIO27
+// 6 GPIO14
+// Recv only
+pub const WINDOW_RIGHT_CHAR_UUID: u128 = 0x8f738eeebbb74cce8b82726a56532bdc;
 
 // Name the types as they are used in the example to get shorter type signatures in the various functions below.
 // note that - rather than `Arc`s, you can use regular references as well, but then you have to deal with lifetimes
@@ -37,8 +58,19 @@ type ExBtDriver = BtDriver<'static, Ble>;
 type ExEspBleGap = Arc<EspBleGap<'static, Ble, Arc<ExBtDriver>>>;
 type ExEspGatts = Arc<EspGatts<'static, Ble, Arc<ExBtDriver>>>;
 
-pub fn start(bt: Arc<BtDriver<'static, Ble>>) -> anyhow::Result<()> {
-    let server = ExampleServer::new(
+/// Stores GPIO pins to control the relays
+pub struct Controller<'d> {
+    door_open: PinDriver<'d, Gpio32, Output>,
+    door_close: PinDriver<'d, Gpio33, Output>,
+    window_left_up: PinDriver<'d, Gpio25, Output>,
+    window_left_down: PinDriver<'d, Gpio26, Output>,
+    window_right_up: PinDriver<'d, Gpio27, Output>,
+    window_right_down: PinDriver<'d, Gpio14, Output>,
+}
+
+pub fn start(nvs: EspNvs<NvsDefault>, bt: Arc<BtDriver<'static, Ble>>) -> anyhow::Result<()> {
+    let server = BleServer::new(
+        nvs,
         Arc::new(EspBleGap::new(bt.clone())?),
         Arc::new(EspGatts::new(bt.clone())?),
     );
@@ -62,14 +94,7 @@ pub fn start(bt: Arc<BtDriver<'static, Ble>>) -> anyhow::Result<()> {
 
     info!("Gatts BTP app registered");
 
-    let mut ind_data = 0_u16;
-
     loop {
-        server.indicate(&ind_data.to_le_bytes())?;
-        info!("Broadcasted indication: {ind_data}");
-
-        ind_data = ind_data.wrapping_add(1);
-
         FreeRtos::delay_ms(10000);
     }
 }
@@ -94,16 +119,18 @@ struct State {
 }
 
 #[derive(Clone)]
-pub struct ExampleServer {
+pub struct BleServer {
+    nvs: Arc<EspNvs<NvsDefault>>,
     gap: ExEspBleGap,
     gatts: ExEspGatts,
     state: Arc<Mutex<State>>,
     condvar: Arc<Condvar>,
 }
 
-impl ExampleServer {
-    pub fn new(gap: ExEspBleGap, gatts: ExEspGatts) -> Self {
+impl BleServer {
+    pub fn new(nvs: EspNvs<NvsDefault>, gap: ExEspBleGap, gatts: ExEspGatts) -> Self {
         Self {
+            nvs: Arc::new(nvs),
             gap,
             gatts,
             state: Arc::new(Mutex::new(Default::default())),
@@ -112,7 +139,7 @@ impl ExampleServer {
     }
 }
 
-impl ExampleServer {
+impl BleServer {
     /// Send (indicate) data to all peers that are currently
     /// subscribed to our indication characteristic
     ///
@@ -300,12 +327,12 @@ impl ExampleServer {
     fn create_service(&self, gatt_if: GattInterface) -> Result<(), EspError> {
         self.state.lock().unwrap().gatt_if = Some(gatt_if);
 
-        self.gap.set_device_name("ESP32")?;
+        self.gap.set_device_name(BLE_DEVICE_NAME)?;
         self.gap.set_adv_conf(&AdvConfiguration {
             include_name: true,
             include_txpower: true,
             flag: 2,
-            service_uuid: Some(BtUuid::uuid128(SERVICE_UUID)),
+            service_uuid: Some(BtUuid::uuid128(DOOR_CHAR_UUID)),
             // service_data: todo!(),
             // manufacturer_data: todo!(),
             ..Default::default()
@@ -314,7 +341,7 @@ impl ExampleServer {
             gatt_if,
             &GattServiceId {
                 id: GattId {
-                    uuid: BtUuid::uuid128(SERVICE_UUID),
+                    uuid: BtUuid::uuid128(DOOR_CHAR_UUID),
                     inst_id: 0,
                 },
                 is_primary: true,
@@ -366,30 +393,35 @@ impl ExampleServer {
     /// Add our two characteristics to the service
     /// Called from within the event callback once we are notified that the service is created
     fn add_characteristics(&self, service_handle: Handle) -> Result<(), EspError> {
-        self.gatts.add_characteristic(
-            service_handle,
-            &GattCharacteristic {
-                uuid: BtUuid::uuid128(RECV_CHARACTERISTIC_UUID),
-                permissions: enum_set!(Permission::Write),
-                properties: enum_set!(Property::Write),
-                max_len: 200, // Max recv data
-                auto_rsp: AutoResponse::ByApp,
-            },
-            &[],
-        )?;
+        let door_char = GattCharacteristic {
+            uuid: BtUuid::uuid128(DOOR_CHAR_UUID),
+            permissions: enum_set!(Permission::Write),
+            properties: enum_set!(Property::Write),
+            max_len: 1,
+            auto_rsp: AutoResponse::ByApp,
+        };
+        let mut left_window_char = door_char.clone();
+        left_window_char.uuid = BtUuid::uuid128(WINDOW_LEFT_CHAR_UUID);
 
-        self.gatts.add_characteristic(
-            service_handle,
-            &GattCharacteristic {
-                uuid: BtUuid::uuid128(IND_CHARACTERISTIC_UUID),
-                permissions: enum_set!(Permission::Write | Permission::Read),
-                properties: enum_set!(Property::Indicate),
-                max_len: 200, // Mac iondicate data
-                auto_rsp: AutoResponse::ByApp,
-            },
-            &[],
-        )?;
+        let mut right_window_char = door_char.clone();
+        right_window_char.uuid = BtUuid::uuid128(WINDOW_RIGHT_CHAR_UUID);
 
+        self.gatts
+            .add_characteristic(service_handle, &door_char, &[])?;
+        self.gatts
+            .add_characteristic(service_handle, &left_window_char, &[])?;
+        self.gatts
+            .add_characteristic(service_handle, &right_window_char, &[])?;
+
+        let ota_update_char = GattCharacteristic {
+            uuid: BtUuid::uuid128(OTA_CHAR_UUID),
+            permissions: enum_set!(Permission::Write | Permission::Read),
+            properties: enum_set!(Property::Write | Property::Read),
+            max_len: 1,
+            auto_rsp: AutoResponse::ByApp,
+        };
+        self.gatts
+            .add_characteristic(service_handle, &ota_update_char, &[])?;
         Ok(())
     }
 
@@ -407,11 +439,11 @@ impl ExampleServer {
 
             if state.service_handle != Some(service_handle) {
                 false
-            } else if char_uuid == BtUuid::uuid128(RECV_CHARACTERISTIC_UUID) {
+            } else if char_uuid == BtUuid::uuid128(DOOR_CHAR_UUID) {
                 state.recv_handle = Some(attr_handle);
 
                 false
-            } else if char_uuid == BtUuid::uuid128(IND_CHARACTERISTIC_UUID) {
+            } else if char_uuid == BtUuid::uuid128(DOOR_CHAR_UUID) {
                 state.ind_handle = Some(attr_handle);
 
                 true
