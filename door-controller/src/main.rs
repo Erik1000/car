@@ -32,10 +32,10 @@ fn main() -> anyhow::Result<()> {
 
     let peripherals = Peripherals::take()?;
     let sys_loop = EspSystemEventLoop::take()?;
-    let nvs = EspDefaultNvsPartition::take()?;
+    let nvs_part = EspDefaultNvsPartition::take()?;
 
-    let enter_update = EspNvs::new(nvs.clone(), "controller", true)?;
-    let enter_update = enter_update.get_u8("enter_update")?.unwrap_or(0);
+    let nvs = EspNvs::new(nvs_part.clone(), "controller", true)?;
+    let enter_update = nvs.get_u8("enter_update")?.unwrap_or(0);
 
     if enter_update == 1 {
         let mut ota = EspOta::new()?;
@@ -46,10 +46,10 @@ fn main() -> anyhow::Result<()> {
         }
         drop(ota);
 
-        updater::run_ota_update_mode(peripherals.modem, sys_loop, nvs)?;
+        updater::run_ota_update_mode(peripherals.modem, sys_loop, nvs_part)?;
     } else {
-        let bt = BtDriver::new(peripherals.modem, Some(nvs.clone()))?;
-        controller::start(Arc::new(bt))?;
+        let bt = BtDriver::new(peripherals.modem, Some(nvs_part.clone()))?;
+        controller::start(nvs, Arc::new(bt))?;
     }
     Ok(())
 }
