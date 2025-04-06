@@ -45,7 +45,7 @@ pub fn run_ota_update_mode(
     log::info!("Waiting for webserver");
     core::mem::forget(server);
     sleep(Duration::from_secs(60 * 5));
-    Ok(())
+    esp_idf_svc::hal::reset::restart();
 }
 
 pub fn run_webserver() -> anyhow::Result<EspHttpServer<'static>> {

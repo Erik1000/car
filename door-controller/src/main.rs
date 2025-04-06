@@ -1,13 +1,15 @@
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 
+use controller::{Controller, Operation};
 use esp_idf_svc::{
     bt::BtDriver,
     eventloop::EspSystemEventLoop,
-    hal::prelude::Peripherals,
+    hal::{gpio::PinDriver, prelude::Peripherals},
     nvs::{EspDefaultNvsPartition, EspNvs},
     ota::{EspOta, SlotState},
 };
 
+mod ble;
 mod controller;
 mod updater;
 
@@ -19,7 +21,6 @@ mod updater;
 // 4 GPIO26
 // 5 GPIO27
 // 6 GPIO14
-// 7 GPIO12
 // 8 GPIO13
 
 fn main() -> anyhow::Result<()> {
@@ -49,7 +50,30 @@ fn main() -> anyhow::Result<()> {
         updater::run_ota_update_mode(peripherals.modem, sys_loop, nvs_part)?;
     } else {
         let bt = BtDriver::new(peripherals.modem, Some(nvs_part.clone()))?;
-        controller::start(nvs, Arc::new(bt))?;
+        let pins = peripherals.pins;
+
+        let door_open = PinDriver::output(pins.gpio32)?;
+        let door_close = PinDriver::output(pins.gpio33)?;
+        let door_disconnect = PinDriver::output(pins.gpio25)?;
+        let window_left_up = PinDriver::output(pins.gpio26)?;
+        let window_left_down = PinDriver::output(pins.gpio27)?;
+        let window_right_up = PinDriver::output(pins.gpio14)?;
+        let window_right_down = PinDriver::output(pins.gpio12)?;
+
+        let (tx, rx) = mpsc::channel::<Operation>();
+        let controller = Controller {
+            rx,
+            door_open,
+            door_close,
+            door_disconnect,
+            window_left_up,
+            window_left_down,
+            window_right_up,
+            window_right_down,
+        };
+
+        std::thread::spawn(move || controller.run());
+        ble::start(tx, nvs, Arc::new(bt))?;
     }
     Ok(())
 }
