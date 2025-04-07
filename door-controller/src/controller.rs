@@ -1,4 +1,5 @@
 use std::{
+    cmp::Reverse,
     collections::BinaryHeap,
     sync::mpsc::{Receiver, TryRecvError},
     time::{Duration, Instant},
@@ -34,7 +35,7 @@ impl PartialOrd for WaitCompleteOperation {
 impl Ord for WaitCompleteOperation {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Reverse because we want the smallest one instead of the biggest (=> furtherst in the future)
-        self.wake_up.cmp(&other.wake_up).reverse()
+        self.wake_up.cmp(&other.wake_up)
     }
 }
 
@@ -58,16 +59,17 @@ pub struct Controller<'d> {
 
 impl Controller<'_> {
     pub fn run(mut self) -> anyhow::Result<()> {
-        let mut queue: BinaryHeap<WaitCompleteOperation> = BinaryHeap::new();
+        let mut queue: BinaryHeap<Reverse<WaitCompleteOperation>> = BinaryHeap::new();
 
         loop {
             if let Some(waited) = queue.peek() {
+                let waited = &waited.0;
                 // check if wake up is in the past or now
                 if waited.wake_up <= Instant::now() {
                     // if so remove it from the queue and process it
                     let op = queue.pop().expect("peek was Some");
-                    log::debug!("Finished Operation for {op:?}");
-                    self.handle_completion(op)?;
+                    log::info!("Finished Operation for {op:?}");
+                    self.handle_completion(op.0)?;
                     // continue because working the queue takes priority over
                     // receiving new operations
                     continue;
@@ -87,7 +89,7 @@ impl Controller<'_> {
                     // wait between loop iterations to save resources
                     // not optimal because in the meantime the queue cannot
                     // work either
-                    Delay::new_default().delay_ms(1);
+                    Delay::new_default().delay_ms(50);
                     continue;
                 }
             };
@@ -97,26 +99,53 @@ impl Controller<'_> {
     pub fn handle_operation(
         &mut self,
         operation: Operation,
-        queue: &mut BinaryHeap<WaitCompleteOperation>,
+        queue: &mut BinaryHeap<Reverse<WaitCompleteOperation>>,
     ) -> anyhow::Result<()> {
         match operation {
             Operation::DoorClose => {
                 self.door_disconnect.set_high()?;
                 self.door_close.set_high()?;
-                queue.push(WaitCompleteOperation {
+                queue.push(Reverse(WaitCompleteOperation {
                     wake_up: Instant::now() + Duration::from_secs(1),
                     operation,
-                });
+                }));
             }
             Operation::DoorOpen => {
                 self.door_disconnect.set_high()?;
                 self.door_open.set_high()?;
-                queue.push(WaitCompleteOperation {
+                queue.push(Reverse(WaitCompleteOperation {
                     wake_up: Instant::now() + Duration::from_secs(1),
                     operation,
-                });
+                }));
             }
-            _ => todo!(),
+            Operation::WindowLeftUp => {
+                self.window_left_up.set_high()?;
+                queue.push(Reverse(WaitCompleteOperation {
+                    wake_up: Instant::now() + Duration::from_secs(10),
+                    operation,
+                }));
+            }
+            Operation::WindowLeftDown => {
+                self.window_left_down.set_high()?;
+                queue.push(Reverse(WaitCompleteOperation {
+                    wake_up: Instant::now() + Duration::from_secs(10),
+                    operation,
+                }));
+            }
+            Operation::WindowRightUp => {
+                self.window_right_up.set_high()?;
+                queue.push(Reverse(WaitCompleteOperation {
+                    wake_up: Instant::now() + Duration::from_secs(10),
+                    operation,
+                }));
+            }
+            Operation::WindowRightDown => {
+                self.window_right_down.set_high()?;
+                queue.push(Reverse(WaitCompleteOperation {
+                    wake_up: Instant::now() + Duration::from_secs(10),
+                    operation,
+                }));
+            }
         }
         Ok(())
     }
@@ -131,7 +160,18 @@ impl Controller<'_> {
                 self.door_open.set_low()?;
                 self.door_disconnect.set_low()?;
             }
-            _ => todo!(),
+            Operation::WindowLeftUp => {
+                self.window_left_up.set_low()?;
+            }
+            Operation::WindowLeftDown => {
+                self.window_left_down.set_low()?;
+            }
+            Operation::WindowRightUp => {
+                self.window_right_up.set_low()?;
+            }
+            Operation::WindowRightDown => {
+                self.window_right_down.set_low()?;
+            }
         }
         Ok(())
     }

@@ -473,6 +473,7 @@ impl BleServer {
     /// Create a new connection
     /// Called from within the event callback once we are notified for a new connection
     fn create_conn(&self, conn_id: ConnectionId, addr: BdAddr) -> Result<(), EspError> {
+        log::info!("new connection");
         let added = {
             let mut state = self.state.lock().unwrap();
 
@@ -500,6 +501,7 @@ impl BleServer {
     /// Delete a connection
     /// Called from within the event callback once we are notified for a disconnected peer
     fn delete_conn(&self, addr: BdAddr) -> Result<(), EspError> {
+        log::info!("disconnected");
         let mut state = self.state.lock().unwrap();
 
         if let Some(index) = state
@@ -558,9 +560,35 @@ impl BleServer {
                 _ => warn!("Invalid door state sent"),
             }
         } else if Some(handle) == state.window_left_handle {
-            info!("Write on window left")
+            info!("Write on window left");
+            match value.first() {
+                Some(0) => {
+                    if let Err(e) = self.tx.send(Operation::WindowLeftUp) {
+                        error!("Send error: {e}")
+                    }
+                }
+                Some(1) => {
+                    if let Err(e) = self.tx.send(Operation::WindowLeftDown) {
+                        error!("Send error: {e}")
+                    }
+                }
+                _ => warn!("Invalid window left state sent"),
+            }
         } else if Some(handle) == state.window_right_handle {
-            info!("Write on window right")
+            info!("Write on window right");
+            match value.first() {
+                Some(0) => {
+                    if let Err(e) = self.tx.send(Operation::WindowRightUp) {
+                        error!("Send error: {e}")
+                    }
+                }
+                Some(1) => {
+                    if let Err(e) = self.tx.send(Operation::WindowRightDown) {
+                        error!("Send error: {e}")
+                    }
+                }
+                _ => warn!("Invalid window right state sent"),
+            }
         } else {
             warn!("Received write on unknown handle {handle:?}");
         }
