@@ -3,7 +3,7 @@ use core::convert::Infallible;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
-use esp_hal::gpio::{GpioPin, Level, Output, OutputPin};
+use esp_hal::gpio::{GpioPin, Level, Output, OutputConfig, OutputPin};
 use log::{info, warn};
 
 use crate::{
@@ -54,16 +54,16 @@ pub struct RelayHandler<'p> {
 
 impl<'p> RelayHandler<'p> {
     pub fn new(
-        radio: GpioPin<RADIO_OUT_PIN>,
-        engine: GpioPin<ENGINE_OUT_PIN>,
-        ignition: GpioPin<IGNITION_OUT_PIN>,
+        radio: GpioPin<'static, RADIO_OUT_PIN>,
+        engine: GpioPin<'static, ENGINE_OUT_PIN>,
+        ignition: GpioPin<'static, IGNITION_OUT_PIN>,
     ) -> Self {
-        let radio = Output::new_typed(radio, Level::Low);
-        let engine = Output::new_typed(engine, Level::Low);
-        let ignition = Output::new_typed(ignition, Level::Low);
+        let radio: Output<'p> = Output::new(radio, Level::Low, OutputConfig::default());
+        let engine: Output<'p> = Output::new(engine, Level::Low, OutputConfig::default());
+        let ignition: Output<'p> = Output::new(ignition, Level::Low, OutputConfig::default());
 
         Self {
-            relais: Relais {
+            relais: Relais::<'p> {
                 radio: radio.into(),
                 engine: engine.into(),
                 ignition: ignition.into(),
@@ -197,19 +197,19 @@ struct Relais<'d> {
 }
 
 pub struct Relay<'d, const GPIO: u8> {
-    pin: Output<'d, GpioPin<GPIO>>,
+    pin: Output<'d>,
 }
 
-impl<'d, const GPIO: u8> From<Output<'d, GpioPin<GPIO>>> for Relay<'d, GPIO> {
-    fn from(pin: Output<'d, GpioPin<GPIO>>) -> Self {
+impl<'d, const GPIO: u8> From<Output<'d>> for Relay<'d, GPIO> {
+    fn from(pin: Output<'d>) -> Self {
         Self { pin }
     }
 }
 
 #[allow(unused)]
-impl<'d, const GPIO: u8> Relay<'d, GPIO>
+impl<const GPIO: u8> Relay<'_, GPIO>
 where
-    GpioPin<GPIO>: OutputPin,
+    GpioPin<'static, GPIO>: OutputPin,
 {
     fn state(&self) -> RelayState {
         match self.pin.is_set_high() {

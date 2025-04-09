@@ -1,4 +1,8 @@
 use serde::{Deserialize, Serialize};
+use trouble_host::{
+    prelude::{AsGatt, FromGatt},
+    types::gatt_traits::FromGattError,
+};
 
 /// Position of key in lock
 ///
@@ -36,4 +40,37 @@ pub enum EngineState {
     Radio = 1,
     Engine = 2,
     Running = 3,
+}
+
+impl Default for EngineState {
+    fn default() -> Self {
+        Self::Off
+    }
+}
+
+impl AsGatt for EngineState {
+    const MAX_SIZE: usize = 1;
+    const MIN_SIZE: usize = 1;
+    fn as_gatt(&self) -> &'static [u8] {
+        // this works because it is static but if done any other way the
+        // compiler is too dumb to figure out the values are static
+        match self {
+            Self::Off => &[0],
+            Self::Radio => &[1],
+            Self::Engine => &[2],
+            Self::Running => &[3],
+        }
+    }
+}
+
+impl FromGatt for EngineState {
+    fn from_gatt(data: &[u8]) -> Result<Self, FromGattError> {
+        Ok(match data.first().ok_or(FromGattError::InvalidLength)? {
+            0 => Self::Off,
+            1 => Self::Radio,
+            2 => Self::Engine,
+            3 => Self::Running,
+            _ => return Err(FromGattError::InvalidCharacter),
+        })
+    }
 }

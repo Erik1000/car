@@ -4,9 +4,11 @@ use core::{
     future::Future,
 };
 
-use appearance::GENERIC_UNKNOWN;
-use embassy_futures::join::join3;
-use log::{error, info, warn};
+use embassy_futures::{
+    join::join,
+    select::{select, Either},
+};
+use log::{error, info};
 use trouble_host::prelude::*;
 
 use crate::{
@@ -25,8 +27,6 @@ const L2CAP_CHANNELS_MAX: usize = 2; // Signal + att
 
 //const MAX_ATTRIBUTES: usize = 10;
 
-type Resources<C> = HostResources<C, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX, L2CAP_MTU>;
-
 pub const ADDRESS: [u8; 6] = [0x94, 0xf1, 0xa0, 0x77, 0x4b, 0x6e];
 
 pub const ENGINE_SERVICE_UUID: [u8; 16] = [
@@ -42,33 +42,59 @@ struct EngineService {
     engine_state: EngineState,
 }
 
-#[gatt_server(attribute_data_size = 10)]
+#[gatt_server]
 struct Server {
     engine_service: EngineService,
 }
 
-pub async fn run<C: Controller>(controller: C) {
+pub async fn run<C: Controller>(controller: C) -> Result<(), Error> {
     let address = Address::random(ADDRESS);
 
-    let mut resources = Resources::new(PacketQos::None);
-    let (stack, peripheral, _, runner) = trouble_host::new(controller, &mut resources)
-        .set_random_address(address)
-        .build();
+    let mut resources: HostResources<CONNECTIONS_MAX, L2CAP_CHANNELS_MAX, L2CAP_MTU> =
+        HostResources::new();
+    let stack = trouble_host::new(controller, &mut resources).set_random_address(address);
 
-    let server = Server::new_with_config(
-        stack,
-        GapConfig::Peripheral(PeripheralConfig {
-            name: BLE_NAME,
-            appearance: &GENERIC_UNKNOWN,
-        }),
-    );
+    let Host {
+        mut peripheral,
+        runner,
+        ..
+    } = stack.build();
 
-    let _ = join3(
-        log_error("ble_task", ble_task(runner)),
-        log_error("gatt_task", gatt_task(&server)),
-        log_error("advertise_task", advertise_task(peripheral, &server)),
-    )
+    let server = Server::new_with_config(GapConfig::Peripheral(PeripheralConfig {
+        name: BLE_NAME,
+        appearance: &trouble_host::prelude::appearance::control_device::GENERIC_CONTROL_DEVICE,
+    }))
+    .map_err(|_| Error::Other)?;
+
+    let _ = join(log_error("ble_task", ble_task(runner)), async {
+        loop {
+            log::info!("Repeat");
+            match advertise_task(&mut peripheral, &server).await {
+                Ok(conn) => {
+                    let a = gatt_task(&server, &conn);
+                    let b = notify_task(&server, &conn);
+                    match select(a, b).await {
+                        Either::First(f) => {
+                            // can only ever return error because Ok is infallible
+                            if let Err(e) = f {
+                                return Err(e);
+                            } else {
+                                continue;
+                            }
+                        }
+                        Either::Second(s) => {
+                            return s;
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("{e:?}");
+                }
+            }
+        }
+    })
     .await;
+    Ok(())
 }
 
 async fn log_error<T, E>(name: impl Display, fut: impl Future<Output = Result<T, E>>)
@@ -81,62 +107,55 @@ where
     }
 }
 async fn ble_task<C: Controller>(mut runner: Runner<'_, C>) -> Result<(), BleHostError<C::Error>> {
-    runner.run().await.unwrap();
+    runner.run().await?;
     Ok(())
 }
 
-async fn gatt_task<C: Controller>(
-    server: &Server<'_, '_, C>,
-) -> Result<Infallible, BleHostError<C::Error>> {
+async fn gatt_task(server: &Server<'_>, conn: &GattConnection<'_, '_>) -> Result<(), Error> {
     info!("gatt task running");
+    let engine_state = &server.engine_service.engine_state;
     loop {
-        match server.next().await {
-            Ok(GattEvent::Write { handle, connection }) => {
-                match server.get(handle, |value| {
-                    let engine_state = match value[0] {
-                        0 => EngineState::Off,
-                        1 => EngineState::Radio,
-                        2 => EngineState::Engine,
-                        3 => EngineState::Running,
-                        _ => {
-                            warn!("Got invalid engine state");
-                            return value[0];
-                        }
-                    };
-                    SIGNAL_BLE_STATE_CHANGE.signal(engine_state);
-                    value[0]
-                }) {
-                    Ok(v) => {
-                        let _ = server.set(server.engine_service.engine_state, &[v]);
-                        match server.notify(handle, &connection, &[v]).await {
-                            Ok(_) => (),
-                            Err(e) => error!("Error notifying: {e:?}"),
-                        }
+        match conn.next().await {
+            GattConnectionEvent::Gatt { event } => match event? {
+                GattEvent::Read(event) => {
+                    if event.handle() == engine_state.handle {
+                        let value = server.get(engine_state)?;
+                        event.accept()?.send().await;
+                        log::info!("Read value {value:?}")
                     }
-                    Err(e) => warn!("GATT write error: {e:?}"),
                 }
-                info!("done nothing for {handle:?}")
+                GattEvent::Write(event) => {
+                    if event.handle() == engine_state.handle {
+                        let val = match EngineState::from_gatt(event.data()) {
+                            Ok(val) => val,
+                            Err(_) => {
+                                log::error!("Rejected write event: {:?}", event.data());
+                                event.reject(AttErrorCode::VALUE_NOT_ALLOWED)?;
+                                continue;
+                            }
+                        };
+                        SIGNAL_BLE_STATE_CHANGE.signal(val);
+                        event.accept()?.send().await;
+                    }
+                }
+            },
+            GattConnectionEvent::Disconnected { reason } => {
+                log::warn!("Disconnected: {reason:?}");
+                break;
             }
-            Ok(GattEvent::Read {
-                handle,
-                connection: _,
-            }) => {
-                info!("[gatt] Read on {handle:?}");
-            }
-            Err(e) => {
-                error!("[gatt] Error processing GATT events: {:?}", e);
-            }
+            _ => log::warn!("unhandled connection event"),
         }
     }
+    log::info!("gatt task finished");
+    Ok(())
 }
 
-async fn advertise_task<C: Controller>(
-    mut peripheral: Peripheral<'_, C>,
-    server: &Server<'_, '_, C>,
-) -> Result<(), BleHostError<C::Error>> {
+async fn advertise_task<'a, 'b, C: Controller>(
+    peripheral: &mut Peripheral<'a, C>,
+    server: &'b Server<'_>,
+) -> Result<GattConnection<'a, 'b>, BleHostError<C::Error>> {
     info!("adv task running");
     let mut adv_data = [0u8; 31];
-    let mut scan_data = [0u8; 31];
     let mut service_uuid: [u8; 16] = ENGINE_SERVICE_UUID;
     // FIXME: for some reason, the service uuid is reversed in advertisements
     // The macro reverses the UUID internally...
@@ -145,43 +164,36 @@ async fn advertise_task<C: Controller>(
     AdStructure::encode_slice(
         &[
             AdStructure::Flags(LE_GENERAL_DISCOVERABLE | BR_EDR_NOT_SUPPORTED),
-            AdStructure::ServiceUuids128(&[Uuid::from_slice(&service_uuid[..])]),
-            //AdStructure::CompleteLocalName(BLE_NAME.as_bytes()),
+            AdStructure::ServiceUuids128(&[service_uuid]),
+            AdStructure::CompleteLocalName(BLE_NAME.as_bytes()),
         ],
         &mut adv_data[..],
     )?;
 
-    AdStructure::encode_slice(
-        &[AdStructure::CompleteLocalName(BLE_NAME.as_bytes())],
-        &mut scan_data,
-    )?;
+    let advertiser = peripheral
+        .advertise(
+            &Default::default(),
+            Advertisement::ConnectableScannableUndirected {
+                adv_data: &adv_data[..],
+                scan_data: &[],
+            },
+        )
+        .await?;
 
+    info!("Advertising...");
+    let conn = advertiser.accept().await?.with_attribute_server(server)?;
+    info!("Connection established");
+    Ok(conn)
+}
+
+async fn notify_task(
+    server: &Server<'_>,
+    conn: &GattConnection<'_, '_>,
+) -> Result<Infallible, Error> {
+    let engine_state_attr = &server.engine_service.engine_state;
     loop {
-        info!("[adv] advertising");
-        info!("Length of packet {}", adv_data.len());
-        let mut advertiser = peripheral
-            .advertise(
-                &Default::default(),
-                Advertisement::ConnectableScannableUndirected {
-                    adv_data: &adv_data[..],
-                    scan_data: &[],
-                },
-            )
-            .await?;
-        info!("sending adv: {adv_data:x?}");
-
-        let connection = advertiser.accept().await?;
-        while connection.is_connected() {
-            let state = SIGNAL_ENGINE_STATE.wait().await;
-            server
-                .notify(
-                    server.engine_service.engine_state,
-                    &connection,
-                    &[state as u8],
-                )
-                .await
-                .ok();
-        }
-        info!("[adv] connection established");
+        let new_state = SIGNAL_ENGINE_STATE.wait().await;
+        // notify connected clients and update engine state in BLE value store
+        engine_state_attr.notify(conn, &new_state).await?;
     }
 }
