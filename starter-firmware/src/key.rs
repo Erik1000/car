@@ -1,7 +1,7 @@
 use embassy_futures::join::join3;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
-use esp_hal::gpio::{GpioPin, Input, InputPin, Level, Pull};
+use esp_hal::gpio::{GpioPin, Input, InputConfig, InputPin, Level, Pull};
 use log::{debug, trace, warn};
 
 use crate::schema::KeyPosition;
@@ -25,9 +25,9 @@ pub struct KeyListener<'d> {
 
 impl<'d> KeyListener<'d> {
     pub fn new(
-        radio: GpioPin<RADIO_IN_PIN>,
-        engine: GpioPin<ENGINE_IN_PIN>,
-        ignition: GpioPin<IGNITION_IN_PIN>,
+        radio: GpioPin<'d, RADIO_IN_PIN>,
+        engine: GpioPin<'d, ENGINE_IN_PIN>,
+        ignition: GpioPin<'d, IGNITION_IN_PIN>,
     ) -> Self {
         Self {
             radio: radio.into(),
@@ -99,7 +99,7 @@ impl<'d> KeyListener<'d> {
                 self.off_overwrite_count = 0;
             }
 
-            debug!("Key position is {sound_key_position:?}");
+            trace!("Key position is {sound_key_position:?}");
             self.last_position = sound_key_position.clone();
             if sound_key_position != self.last_signal {
                 debug!("Sending key position change signal");
@@ -110,18 +110,18 @@ impl<'d> KeyListener<'d> {
     }
 }
 
-impl<const P: u8> From<GpioPin<P>> for Debounced<'_, P>
+impl<'a, const P: u8> From<GpioPin<'a, P>> for Debounced<'a, P>
 where
-    GpioPin<P>: InputPin,
+    GpioPin<'a, P>: InputPin,
 {
-    fn from(pin: GpioPin<P>) -> Self {
+    fn from(pin: GpioPin<'a, P>) -> Self {
         // uses some default values
         Self::new(pin, 20, Duration::from_millis(10))
     }
 }
 
 struct Debounced<'d, const P: u8> {
-    pin: Input<'d, GpioPin<P>>,
+    pin: Input<'d>,
     previous_state: Level,
     debounce_count: u8,
     threshold: u8,
@@ -130,11 +130,11 @@ struct Debounced<'d, const P: u8> {
 
 impl<'d, const P: u8> Debounced<'d, P>
 where
-    GpioPin<P>: InputPin,
+    GpioPin<'d, P>: InputPin,
 {
-    pub fn new(pin: GpioPin<P>, threshold: u8, interval: Duration) -> Self {
+    pub fn new(pin: GpioPin<'d, P>, threshold: u8, interval: Duration) -> Self {
         Debounced {
-            pin: Input::new_typed(pin, Pull::Down),
+            pin: Input::new(pin, InputConfig::default().with_pull(Pull::Down)),
             previous_state: Level::Low,
             debounce_count: 0,
             threshold,
@@ -144,7 +144,7 @@ where
 
     pub async fn wait_for_stable_state(&mut self) -> Level {
         loop {
-            let current_state = self.pin.get_level();
+            let current_state = self.pin.level();
             if current_state == self.previous_state {
                 self.debounce_count += 1;
                 if self.debounce_count >= self.threshold {
