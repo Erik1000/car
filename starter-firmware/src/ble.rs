@@ -8,6 +8,7 @@ use embassy_futures::{
     join::join,
     select::{select, Either},
 };
+use esp_hal::rng::Trng;
 use log::{error, info};
 use trouble_host::prelude::*;
 
@@ -47,12 +48,14 @@ struct Server {
     engine_service: EngineService,
 }
 
-pub async fn run<C: Controller>(controller: C) -> Result<(), Error> {
+pub async fn run<C: Controller>(controller: C, mut rng: Trng<'_>) -> Result<(), Error> {
     let address = Address::random(ADDRESS);
 
     let mut resources: HostResources<CONNECTIONS_MAX, L2CAP_CHANNELS_MAX, L2CAP_MTU> =
         HostResources::new();
-    let stack = trouble_host::new(controller, &mut resources).set_random_address(address);
+    let stack = trouble_host::new(controller, &mut resources)
+        .set_random_address(address)
+        .set_random_generator_seed(&mut rng);
 
     let Host {
         mut peripheral,
@@ -120,22 +123,36 @@ async fn gatt_task(server: &Server<'_>, conn: &GattConnection<'_, '_>) -> Result
                 GattEvent::Read(event) => {
                     if event.handle() == engine_state.handle {
                         let value = server.get(engine_state)?;
+                        log::info!("Read value {value:?}");
+                    }
+                    if conn.raw().encrypted() {
                         event.accept()?.send().await;
-                        log::info!("Read value {value:?}")
+                    } else {
+                        event
+                            .reject(AttErrorCode::INSUFFICIENT_ENCRYPTION)?
+                            .send()
+                            .await;
                     }
                 }
                 GattEvent::Write(event) => {
                     if event.handle() == engine_state.handle {
-                        let val = match EngineState::from_gatt(event.data()) {
-                            Ok(val) => val,
-                            Err(_) => {
-                                log::error!("Rejected write event: {:?}", event.data());
-                                event.reject(AttErrorCode::VALUE_NOT_ALLOWED)?;
-                                continue;
-                            }
-                        };
-                        SIGNAL_BLE_STATE_CHANGE.signal(val);
-                        event.accept()?.send().await;
+                        if conn.raw().encrypted() {
+                            let val = match EngineState::from_gatt(event.data()) {
+                                Ok(val) => val,
+                                Err(_) => {
+                                    log::error!("Rejected write event: {:?}", event.data());
+                                    event.reject(AttErrorCode::VALUE_NOT_ALLOWED)?;
+                                    continue;
+                                }
+                            };
+                            SIGNAL_BLE_STATE_CHANGE.signal(val);
+                            event.accept()?.send().await;
+                        } else {
+                            event
+                                .reject(AttErrorCode::INSUFFICIENT_ENCRYPTION)?
+                                .send()
+                                .await;
+                        }
                     }
                 }
             },

@@ -7,6 +7,7 @@ use esp_backtrace as _;
 
 use esp_hal::{
     gpio::GpioPin,
+    rng::Trng,
     timer::{systimer::SystemTimer, timg::TimerGroup},
 };
 use esp_wifi::ble::controller::BleConnector;
@@ -26,12 +27,9 @@ async fn main(spawner: embassy_executor::Spawner) {
     esp_println::logger::init_logger_from_env();
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    let init = esp_wifi::init(
-        timg0.timer0,
-        esp_hal::rng::Rng::new(peripherals.RNG),
-        peripherals.RADIO_CLK,
-    )
-    .unwrap();
+    let trng = Trng::new(peripherals.RNG, peripherals.ADC1);
+    let rng = trng.rng;
+    let init = esp_wifi::init(timg0.timer0, rng, peripherals.RADIO_CLK).unwrap();
 
     let systimer = SystemTimer::new(peripherals.SYSTIMER);
     esp_hal_embassy::init(systimer.alarm0);
@@ -50,7 +48,7 @@ async fn main(spawner: embassy_executor::Spawner) {
         ))
         .unwrap();
 
-    let (res, _) = join(ble::run(controller), relay_handler.listen()).await;
+    let (res, _) = join(ble::run(controller, trng), relay_handler.listen()).await;
     if let Err(e) = res {
         log::error!("BLE returned with error: {e:?}")
     }
