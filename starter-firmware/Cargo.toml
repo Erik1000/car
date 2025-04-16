@@ -43,7 +43,9 @@ embassy-executor = { features = ["task-arena-size-65536"], version = "0.7" }
 #     "nightly",
 # ] } #features = ["task-arena-size-65536"] }
 #embassy-executor = { version = "0.6", features = ["nightly"] }
-trouble-host = { git = "https://github.com/embassy-rs/trouble.git", rev = "851909523dc4d18dde192732c2f9ae795269559b" }
+trouble-host = { features = [
+    "security",
+], git = "https://github.com/embassy-rs/trouble.git", rev = "851909523dc4d18dde192732c2f9ae795269559b" }
 ciborium = { version = "0.2.2", default-features = false }
 serde = { version = "1", default-features = false, features = [
     "alloc",
