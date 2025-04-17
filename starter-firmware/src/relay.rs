@@ -3,7 +3,7 @@ use core::convert::Infallible;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
-use esp_hal::gpio::{GpioPin, Level, Output, OutputConfig, OutputPin};
+use esp_hal::gpio::{DriveMode, GpioPin, Level, Output, OutputConfig, OutputPin, Pull};
 use log::{info, warn};
 
 use crate::{
@@ -13,8 +13,9 @@ use crate::{
 
 // GPIO pin numbers
 const RADIO_OUT_PIN: u8 = 10;
-const ENGINE_OUT_PIN: u8 = 20;
-const IGNITION_OUT_PIN: u8 = 7;
+const ENGINE_OUT_PIN: u8 = 21;
+const ENGINE_CONSUMERS_OUT_PIN: u8 = 7;
+const IGNITION_OUT_PIN: u8 = 20;
 
 // FIXME: use RwLock when available in embassy-sync
 // <https://github.com/embassy-rs/embassy/issues/1394>
@@ -56,16 +57,22 @@ impl<'p> RelayHandler<'p> {
     pub fn new(
         radio: GpioPin<'static, RADIO_OUT_PIN>,
         engine: GpioPin<'static, ENGINE_OUT_PIN>,
+        engine_consumers: GpioPin<'static, ENGINE_CONSUMERS_OUT_PIN>,
         ignition: GpioPin<'static, IGNITION_OUT_PIN>,
     ) -> Self {
-        let radio: Output<'p> = Output::new(radio, Level::Low, OutputConfig::default());
-        let engine: Output<'p> = Output::new(engine, Level::Low, OutputConfig::default());
-        let ignition: Output<'p> = Output::new(ignition, Level::Low, OutputConfig::default());
+        let config = OutputConfig::default()
+            .with_pull(Pull::None)
+            .with_drive_mode(DriveMode::PushPull);
+        let radio: Output<'p> = Output::new(radio, Level::Low, config);
+        let engine: Output<'p> = Output::new(engine, Level::Low, config);
+        let engine_consumers: Output<'p> = Output::new(engine_consumers, Level::Low, config);
+        let ignition: Output<'p> = Output::new(ignition, Level::Low, config);
 
         Self {
             relais: Relais::<'p> {
                 radio: radio.into(),
                 engine: engine.into(),
+                engine_consumers: engine_consumers.into(),
                 ignition: ignition.into(),
             },
             engine_running: false,
@@ -88,6 +95,7 @@ impl<'p> RelayHandler<'p> {
             EngineState::Off => {
                 relais.ignition.unpower();
                 relais.engine.unpower();
+                relais.engine_consumers.unpower();
                 relais.radio.unpower();
                 cooldown.await;
                 self.engine_running = false;
@@ -95,14 +103,18 @@ impl<'p> RelayHandler<'p> {
             EngineState::Radio => {
                 relais.ignition.unpower();
                 relais.engine.unpower();
+                relais.engine_consumers.unpower();
+
                 relais.radio.power();
                 cooldown.await;
                 self.engine_running = false;
             }
             EngineState::Engine => {
                 relais.ignition.unpower();
+
                 relais.radio.power();
                 relais.engine.power();
+                relais.engine_consumers.power();
                 cooldown.await;
                 self.engine_running = false;
             }
@@ -110,6 +122,7 @@ impl<'p> RelayHandler<'p> {
                 // TODO: store running status in flash in order to recover on crash so that the engine cannot turn of while driving
                 relais.ignition.unpower();
                 relais.engine.unpower();
+                relais.engine_consumers.unpower();
                 relais.radio.unpower();
                 cooldown.await;
                 relais.radio.power();
@@ -119,6 +132,7 @@ impl<'p> RelayHandler<'p> {
                 if !skip_cooldown {
                     Timer::after_secs(1).await;
                     relais.ignition.unpower();
+                    relais.engine_consumers.power();
                 }
                 self.engine_running = true;
             }
@@ -193,6 +207,7 @@ impl<'p> RelayHandler<'p> {
 struct Relais<'d> {
     radio: Relay<'d, RADIO_OUT_PIN>,
     engine: Relay<'d, ENGINE_OUT_PIN>,
+    engine_consumers: Relay<'d, ENGINE_CONSUMERS_OUT_PIN>,
     ignition: Relay<'d, IGNITION_OUT_PIN>,
 }
 

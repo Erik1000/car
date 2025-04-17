@@ -8,9 +8,9 @@ use crate::schema::KeyPosition;
 
 pub static SIGNAL_KEY_POSITION_CHANGE: Signal<CriticalSectionRawMutex, KeyPosition> = Signal::new();
 
-pub const RADIO_IN_PIN: u8 = 1;
+pub const RADIO_IN_PIN: u8 = 0;
 pub const ENGINE_IN_PIN: u8 = 3;
-pub const IGNITION_IN_PIN: u8 = 4;
+pub const IGNITION_IN_PIN: u8 = 6;
 
 /// Checks and listens for the position of the physical key in the car next to the stearing wheel
 pub struct KeyListener<'d> {
