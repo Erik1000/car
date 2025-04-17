@@ -38,13 +38,17 @@ async fn main(spawner: embassy_executor::Spawner) {
     let connector = BleConnector::new(&init, bluetooth);
     let controller: ExternalController<_, 20> = ExternalController::new(connector);
 
-    let mut relay_handler =
-        RelayHandler::new(peripherals.GPIO10, peripherals.GPIO20, peripherals.GPIO7);
+    let mut relay_handler = RelayHandler::new(
+        peripherals.GPIO10,
+        peripherals.GPIO21,
+        peripherals.GPIO7,
+        peripherals.GPIO20,
+    );
     spawner
         .spawn(key_task(
-            peripherals.GPIO1,
+            peripherals.GPIO0,
             peripherals.GPIO3,
-            peripherals.GPIO4,
+            peripherals.GPIO6,
         ))
         .unwrap();
 
