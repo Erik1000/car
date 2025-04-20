@@ -7,8 +7,8 @@ use esp_idf_svc::{
             gap::{AdvConfiguration, BleGapEvent, EspBleGap},
             gatt::{
                 server::{ConnectionId, EspGatts, GattsEvent, TransferId},
-                AutoResponse, GattCharacteristic, GattDescriptor, GattId, GattInterface,
-                GattResponse, GattServiceId, GattStatus, Handle, Permission, Property,
+                AutoResponse, GattCharacteristic, GattId, GattInterface, GattResponse,
+                GattServiceId, GattStatus, Handle, Permission, Property,
             },
         },
         BdAddr, Ble, BtDriver, BtStatus, BtUuid,
@@ -60,6 +60,7 @@ pub const WINDOW_RIGHT_CHAR_UUID: u128 = 0x8f738eeebbb74cce8b82726a56532bdc;
 type ExBtDriver = BtDriver<'static, Ble>;
 type ExEspBleGap = Arc<EspBleGap<'static, Ble, Arc<ExBtDriver>>>;
 type ExEspGatts = Arc<EspGatts<'static, Ble, Arc<ExBtDriver>>>;
+
 pub fn start(
     tx: Sender<Operation>,
     nvs: EspNvs<NvsDefault>,
@@ -99,7 +100,6 @@ pub fn start(
 struct Connection {
     peer: BdAddr,
     conn_id: Handle,
-    subscribed: bool,
     mtu: Option<u16>,
 }
 
@@ -144,85 +144,6 @@ impl BleServer {
 }
 
 impl BleServer {
-    /// Send (indicate) data to all peers that are currently
-    /// subscribed to our indication characteristic
-    ///
-    /// Uses a Mutex + Condvar to wait until indication confirmation
-    /// is received.
-    ///
-    /// This complexity is necessary only when using indications.
-    /// Notifications do not really send confirmation and thus do not
-    /// need this synchronization.
-    fn indicate(&self, data: &[u8]) -> Result<(), EspError> {
-        // for peer_index in 0..MAX_CONNECTIONS {
-        //     // Propagate this data to all clients which are connected
-        //     // and have subscribed to our indication characteristic
-
-        //     let mut state = self.state.lock().unwrap();
-
-        //     loop {
-        //         if state.connections.len() <= peer_index {
-        //             // We've send to everybody who is connected
-        //             break;
-        //         }
-
-        //         let Some(gatt_if) = state.gatt_if else {
-        //             // We lost the gatt interface in the meantime
-        //             break;
-        //         };
-
-        //         let Some(ind_handle) = state.ind_handle else {
-        //             // We lost the indication handle in the meantime
-        //             break;
-        //         };
-
-        //         if state.ind_confirmed.is_none() {
-        //             let conn = &state.connections[peer_index];
-
-        //             self.gatts
-        //                 .indicate(gatt_if, conn.conn_id, ind_handle, data)?;
-
-        //             state.ind_confirmed = Some(conn.peer);
-        //             let conn = &state.connections[peer_index];
-
-        //             info!("Indicated data to {}", conn.peer);
-        //             break;
-        //         } else {
-        //             state = self.condvar.wait(state).unwrap();
-        //         }
-        //     }
-        // }
-
-        Ok(())
-    }
-
-    /// Sample callback where the user code can handle a newly-subscribed client
-    ///
-    /// If the user code just broadcasts the _same_ indication to all subscribed
-    /// clients, this callback might not be necessary.
-    fn on_subscribed(&self, addr: BdAddr) {
-        // Put your custom code here or leave empty
-        // `indicate()` will anyway send to all connected clients
-        warn!("Client {addr} subscribed - put your custom logic here");
-    }
-
-    /// Sample callback where the user code can handle an unsubscribed client
-    ///
-    /// If the user code just broadcasts the _same_ indication to all subscribed
-    /// clients, this callback might not be necessary.
-    fn on_unsubscribed(&self, addr: BdAddr) {
-        // Put your custom code here
-        // `indicate()` will anyway send to all connected clients
-        warn!("Client {addr} unsubscribed - put your custom logic here");
-    }
-
-    /// Sample callback where the user code can handle received data
-    /// For demo purposes, the data is just logged.
-    fn on_recv(&self, addr: BdAddr, data: &[u8], offset: u16, mtu: Option<u16>) {
-        // Put your custom code here
-        warn!("Received data from {addr}: {data:?}, offset: {offset}, mtu: {mtu:?} - put your custom logic here");
-    }
-
     /// The main event handler for the GAP events
     fn on_gap_event(&self, event: BleGapEvent) -> Result<(), EspError> {
         info!("Got event: {event:?}");
@@ -272,21 +193,11 @@ impl BleServer {
                 }
                 self.check_gatt_status(status)?;
             }
-            GattsEvent::DescriptorAdded {
-                status,
-                attr_handle,
-                service_handle,
-                descr_uuid,
-            } => {
-                self.check_gatt_status(status)?;
-                self.register_cccd_descriptor(service_handle, attr_handle, descr_uuid)?;
-            }
             GattsEvent::ServiceDeleted {
                 status,
-                service_handle,
+                service_handle: _,
             } => {
                 self.check_gatt_status(status)?;
-                self.delete_service(service_handle)?;
             }
             GattsEvent::ServiceUnregistered {
                 status,
@@ -366,12 +277,6 @@ impl BleServer {
         Ok(())
     }
 
-    /// Delete the service
-    /// Called from within the event callback once we are notified that the GATTS app is deleted
-    fn delete_service(&self, service_handle: Handle) -> Result<(), EspError> {
-        Ok(())
-    }
-
     /// Unregister the service
     /// Called from within the event callback once we are notified that the GATTS app is unregistered
     fn unregister_service(&self, service_handle: Handle) -> Result<(), EspError> {
@@ -431,30 +336,6 @@ impl BleServer {
         Ok(())
     }
 
-    /// Add the CCCD descriptor
-    /// Called from within the event callback once we are notified that a char descriptor is added,
-    /// however the method will do something only if the added char is the "indicate" characteristics of course
-    fn register_characteristic(
-        &self,
-        service_handle: Handle,
-        attr_handle: Handle,
-        char_uuid: BtUuid,
-    ) -> Result<(), EspError> {
-        Ok(())
-    }
-
-    /// Register the CCCD descriptor
-    /// Called from within the event callback once we are notified that a descriptor is added,
-    fn register_cccd_descriptor(
-        &self,
-        service_handle: Handle,
-        attr_handle: Handle,
-        descr_uuid: BtUuid,
-    ) -> Result<(), EspError> {
-        Ok(())
-    }
-
-    /// Receive data from a client
     /// Called from within the event callback once we are notified for the connection MTU
     fn register_conn_mtu(&self, conn_id: ConnectionId, mtu: u16) -> Result<(), EspError> {
         let mut state = self.state.lock().unwrap();
@@ -481,7 +362,6 @@ impl BleServer {
                 state.connections.push(Connection {
                     peer: addr,
                     conn_id,
-                    subscribed: false,
                     mtu: None,
                 });
 
@@ -520,11 +400,11 @@ impl BleServer {
     fn recv(
         &self,
         _gatt_if: GattInterface,
-        conn_id: ConnectionId,
+        _conn_id: ConnectionId,
         _trans_id: TransferId,
-        addr: BdAddr,
+        _addr: BdAddr,
         handle: Handle,
-        offset: u16,
+        _offset: u16,
         _need_rsp: bool,
         _is_prep: bool,
         value: &[u8],
@@ -646,7 +526,6 @@ impl BleServer {
     /// Basically, we need to notify the "indicate" method that sending the indication was
     /// confirmed, so that it is free to send the next indication.
     fn confirm_indication(&self) -> Result<(), EspError> {
-        let mut state = self.state.lock().unwrap();
         self.condvar.notify_all();
 
         Ok(())
