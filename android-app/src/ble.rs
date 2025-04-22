@@ -1,5 +1,8 @@
 use std::{
-    collections::HashSet, convert::Infallible, sync::OnceLock, time::Duration,
+    collections::{BTreeSet, HashSet},
+    convert::Infallible,
+    sync::OnceLock,
+    time::Duration,
 };
 
 use btleplug::{
@@ -9,7 +12,6 @@ use btleplug::{
 use color_eyre::eyre::eyre;
 use jni::JNIEnv;
 use tokio::{
-    select,
     sync::{
         mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
         RwLock,
@@ -240,11 +242,10 @@ pub async fn search() -> color_eyre::Result<()> {
     info!("Scanning for BLE devices");
     let mut found_starter = false;
     let mut found_door_controller = false;
-    let mut already_checked = HashSet::new();
     'scan: loop {
         debug!("Searching...");
         // give some time to scan
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_secs(5)).await;
         let peripherals = adapter.peripherals().await?;
         // used to early exit the for each if both devices are found
         debug!("Total peripherals found: {}", peripherals.len());
@@ -255,13 +256,6 @@ pub async fn search() -> color_eyre::Result<()> {
                 adapter.stop_scan().await?;
                 break 'scan;
             }
-            if already_checked.contains(&p.address()) {
-                debug!(
-                    "Skipping device {}, because it was already checked",
-                    p.address()
-                );
-                continue 'peripherals;
-            }
             if let Err(e) = p.connect().await {
                 warn!("Failed to connect to device {}: {e:?}", p.address())
             }
@@ -271,31 +265,17 @@ pub async fn search() -> color_eyre::Result<()> {
                     p.address()
                 )
             } else {
-                debug!("Discoverd services on {}", p.address())
-            }
-            if let Err(e) = select! {
-                res = p.discover_services() => res,
-                _ = sleep(Duration::from_secs(5)) => {
-                    debug!("discover services timed out");
-                    continue 'peripherals;
-                }
-            } {
-                warn!(
-                    "Error discovering services on peripheral {}: {e}",
-                    p.address()
+                debug!(
+                    "Discoverd services on {}: {:?}",
+                    p.address(),
+                    p.services()
+                        .iter()
+                        .map(|s| s.uuid)
+                        .collect::<BTreeSet<uuid::Uuid>>()
                 )
-            } else {
-                debug!("Discoverd services on {}", p.address())
             }
             for service in &p.services() {
                 if service.uuid == ENGINE_SERVICE_UUID && !found_starter {
-                    if let Err(e) = p.connect().await {
-                        warn!(
-                            "Failed to connect to found starter {}: {e}",
-                            p.address()
-                        );
-                        continue 'peripherals;
-                    }
                     error!("Found starter with address {}", p.address());
                     STARTER.set(p).map_err(|p| {
                         eyre!(
@@ -305,11 +285,9 @@ pub async fn search() -> color_eyre::Result<()> {
                     })?;
                     found_starter = true;
                     continue 'peripherals;
-                } else if service.uuid == DOOR_SERVICE_UUID {
-                    if let Err(e) = p.connect().await {
-                        warn!("Failed to connect to found door controller {}: {e}", p.address());
-                        continue 'peripherals;
-                    }
+                } else if service.uuid == DOOR_SERVICE_UUID
+                    && !found_door_controller
+                {
                     info!("Found door controller with address {}", p.address());
                     DOOR_CONTROLLER.set(p).map_err(|p| {
                         eyre!(
@@ -319,8 +297,6 @@ pub async fn search() -> color_eyre::Result<()> {
                     })?;
                     found_door_controller = true;
                     continue 'peripherals;
-                } else {
-                    already_checked.insert(p.address());
                 }
             }
         }
