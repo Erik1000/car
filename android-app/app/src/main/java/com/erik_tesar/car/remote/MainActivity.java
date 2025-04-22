@@ -23,8 +23,10 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
         if (checkPermission(getApplicationContext())) {
-            Intent rustIntent = new Intent(this, RustService.class);
-            startForegroundService(rustIntent);
+            if (!RustService.isRunning) {
+                Intent rustIntent = new Intent(this, RustService.class);
+                startForegroundService(rustIntent);
+            }
         }
 
         ImageView img = (ImageView) findViewById(R.id.autoButton);
