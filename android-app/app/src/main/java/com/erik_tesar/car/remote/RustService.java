@@ -16,6 +16,7 @@ public class RustService extends Service {
     private static final String CHANNEL_ID = "RustServiceChannel";
     private static final int NOTIFICATION_ID = 1;
 
+    public static boolean isRunning = false;
     static {
         System.loadLibrary("car_remote");
     }
@@ -25,6 +26,7 @@ public class RustService extends Service {
    @Override
     public void onCreate() {
         super.onCreate();
+        isRunning = true;
     }
 
     @Override
@@ -44,6 +46,7 @@ public class RustService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        isRunning = false;
     }
 
     @Override
