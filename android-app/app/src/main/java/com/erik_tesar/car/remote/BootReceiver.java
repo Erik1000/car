@@ -13,7 +13,7 @@ public class BootReceiver extends BroadcastReceiver {
         if (Objects.requireNonNull(intent.getAction()).equalsIgnoreCase(Intent.ACTION_BOOT_COMPLETED)) {
             // Start your service here..
             Log.i("AutoStart", "BOOTED!");
-            Intent serviceIntent = new Intent(context.getApplicationContext(), BleService.class);
+            Intent serviceIntent = new Intent(context.getApplicationContext(), RustService.class);
             context.getApplicationContext().startForegroundService(serviceIntent);
         }
     }

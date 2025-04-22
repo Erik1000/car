@@ -22,10 +22,7 @@ public class RustService extends Service {
 
     private native void startService();
 
-    public void factCallback(int res) {
-        Log.e("Rust", "Callback with " + res);
-    }
-    @Override
+   @Override
     public void onCreate() {
         super.onCreate();
     }
@@ -37,9 +34,8 @@ public class RustService extends Service {
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
 
-        //startService(this.getFilesDir().toString());
-        Log.i("Rust", String.valueOf(this));
-        startService();
+        Thread tokio = new Thread(this::startService);
+        tokio.start();
 
         Log.i("Rust", "Service started!");
         return START_STICKY;

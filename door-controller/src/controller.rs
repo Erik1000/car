@@ -121,28 +121,28 @@ impl Controller<'_> {
             Operation::WindowLeftUp => {
                 self.window_left_up.set_high()?;
                 queue.push(Reverse(WaitCompleteOperation {
-                    wake_up: Instant::now() + Duration::from_secs(10),
+                    wake_up: Instant::now() + Duration::from_secs(5),
                     operation,
                 }));
             }
             Operation::WindowLeftDown => {
                 self.window_left_down.set_high()?;
                 queue.push(Reverse(WaitCompleteOperation {
-                    wake_up: Instant::now() + Duration::from_secs(10),
+                    wake_up: Instant::now() + Duration::from_secs(5),
                     operation,
                 }));
             }
             Operation::WindowRightUp => {
                 self.window_right_up.set_high()?;
                 queue.push(Reverse(WaitCompleteOperation {
-                    wake_up: Instant::now() + Duration::from_secs(10),
+                    wake_up: Instant::now() + Duration::from_secs(5),
                     operation,
                 }));
             }
             Operation::WindowRightDown => {
                 self.window_right_down.set_high()?;
                 queue.push(Reverse(WaitCompleteOperation {
-                    wake_up: Instant::now() + Duration::from_secs(10),
+                    wake_up: Instant::now() + Duration::from_secs(5),
                     operation,
                 }));
             }

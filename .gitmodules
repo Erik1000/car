@@ -1,0 +1,3 @@
+[submodule "android-app/btleplug"]
+	path = android-app/btleplug
+	url = https://github.com/deviceplug/btleplug.git
