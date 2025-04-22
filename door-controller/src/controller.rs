@@ -2,7 +2,7 @@ use core::cmp::Reverse;
 
 use alloc::collections::binary_heap::BinaryHeap;
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Receiver};
-use embassy_time::{Duration, Instant};
+use embassy_time::{Duration, Instant, Timer};
 use esp_hal::gpio::Output;
 
 use crate::schema::{Lock, WindowLeft, WindowRight};
@@ -99,8 +99,15 @@ impl Controller<'_> {
                 }
             }
 
-            let operation = self.rx.receive().await;
-            self.handle_operation(operation, &mut queue);
+            match self.rx.try_receive() {
+                Ok(operation) => {
+                    self.handle_operation(operation, &mut queue);
+                }
+                // channel empty
+                Err(_) => {
+                    Timer::after(Duration::from_millis(10)).await;
+                }
+            }
         }
     }
 
