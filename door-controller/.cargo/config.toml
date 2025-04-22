@@ -1,15 +1,15 @@
-[build]
-target = "xtensa-esp32-espidf"
-
-[target.xtensa-esp32-espidf]
-linker = "ldproxy"
-runner = "espflash flash --monitor --partition-table=partitions.csv --bootloader ./target/xtensa-esp32-espidf/release/bootloader.bin"
-rustflags = ["--cfg", "espidf_time64"]
-
-[unstable]
-build-std = ["std", "panic_abort"]
+[target.xtensa-esp32-none-elf]
+runner = "espflash flash --monitor --chip esp32"
 
 [env]
-MCU = "esp32"
-# Note: this variable is not used by the pio builder (`cargo build --features pio`)
-ESP_IDF_VERSION = "v5.3.2"
+ESP_LOG="info"
+
+[build]
+rustflags = [
+  "-C", "link-arg=-nostartfiles",
+]
+
+target = "xtensa-esp32-none-elf"
+
+[unstable]
+build-std = ["alloc", "core"]

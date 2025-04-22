@@ -4,32 +4,75 @@ version = "0.1.0"
 authors = ["Erik Tesar <erik@erik-tesar.com>"]
 edition = "2021"
 resolver = "2"
-rust-version = "1.77"
+rust-version = "1.84"
 
 [[bin]]
 name = "door-controller"
 harness = false # do not use the built in cargo test harness -> resolve rust-analyzer errors
-
-[profile.release]
-opt-level = "s"
-
-[profile.dev]
-debug = true    # Symbols are nice and they don't increase the size on Flash
-opt-level = "z"
 
 [features]
 default = []
 
 [dependencies]
 log = "0.4"
-esp-idf-svc = { version = "0.51", features = ["critical-section", "embassy-time-driver", "embassy-sync", "embedded-storage", "experimental"] }
-anyhow = "1.0.97"
-multer = { version = "3.1.0", default-features = false }
 futures-core = { version = "0.3.31", default-features = false }
-enumset = { version = "1.1.5", default-features = false }
+esp-backtrace = { version = "0.15", features = [
+    "esp32",
+    "exception-handler",
+    "panic-handler",
+    "println",
+] }
+esp-hal = { version = "1.0.0-beta.0", features = [
+    "esp32",
+    "unstable",
+    "log",
+] }
+esp-println = { version = "0.13", features = ["esp32", "log"] }
+esp-alloc = { version = "0.7.0" }
+esp-storage = { version = "0.5", features = ["esp32"] }
+embedded-io = "0.6.1"
+esp-wifi = { version = "0.13", features = [
+    "esp32",
+    #"phy-enable-usb",
+    #"utils",
+    "ble",
+    #"async",
+] }
+heapless = { version = "0.8.0", default-features = false }
+bt-hci = { version = "0.3" }
+esp-hal-embassy = { version = "0.7", features = ["esp32"] }
+embassy-futures = "0.1.1"
+embassy-time = { version = "0.4", features = ["generic-queue-8"] }
+static_cell = { version = "2", features = ["nightly"] }
+embassy-sync = { version = "0.6", features = [] }
+embassy-executor = { features = ["task-arena-size-20480"], version = "0.7" }
+anyhow = { version = "1.0.98", default-features = false }
 
-[build-dependencies]
-embuild = "0.33"
+trouble-host = { features = [
+    "security",
+], git = "https://github.com/embassy-rs/trouble.git", rev = "851909523dc4d18dde192732c2f9ae795269559b" }
 
 [patch.crates-io]
-esp-idf-svc = { git = "https://github.com/esp-rs/esp-idf-svc.git", rev = "83e117d14b11eeda81626b30ca396eba31008b57"}
+embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "eb6e22ab4dc355e1b81b4857515254d74432166a" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+esp-storage = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+
+
+[profile.dev]
+# Rust debug is too slow.
+# For debug builds always builds with some optimization
+opt-level = 3
+
+[profile.release]
+codegen-units    = 1     # LLVM can perform better optimizations using a single thread
+debug            = 2
+debug-assertions = false
+incremental      = false
+lto              = 'fat'
+opt-level        = 3
+overflow-checks  = false
