@@ -76,7 +76,6 @@ pub async fn listen(
 ) -> color_eyre::Result<Infallible> {
     while let Some(sms) = sms_receiver.recv().await {
         if sms.number == env!("AUTHORIZED_PHONE_NUMBER") {
-            //env!("AUTHORIZED_PHONE_NUMBER") {
             match sms.message.trim().to_lowercase().as_str() {
                 "off" => {
                     ble_sender.send(Command::Engine(EngineCommand::Off))?;
