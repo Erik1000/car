@@ -1,8 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashSet},
-    convert::Infallible,
-    sync::OnceLock,
-    time::Duration,
+    collections::BTreeSet, convert::Infallible, sync::OnceLock, time::Duration,
 };
 
 use btleplug::{
@@ -64,14 +61,17 @@ async fn listen(
 ) -> color_eyre::Result<Infallible> {
     info!("Listening for commands that should be sent over BLE");
     while let Some(command) = receiver.recv().await {
+        info!("Sending command via BLE: {command:?}");
         match command {
             Command::DoorController(command) => {
+                info!("Sending {command:?} to door controller handler");
                 let _ = log_error(
                     "Door command handler failed",
                     handle_door_command(command).await,
                 );
             }
             Command::Engine(command) => {
+                info!("Sending {command:?} to engine handler");
                 let _ = log_error(
                     "Engine command handler failed",
                     handle_engine_command(command).await,
@@ -87,53 +87,66 @@ async fn handle_door_command(
 ) -> color_eyre::Result<()> {
     match DOOR_CONTROLLER.get() {
         Some(door_controller) => {
+            info!("Checking if door controller is connected");
             if !door_controller.is_connected().await? {
                 debug!(
                     "Door controller is not connected, trying to connect..."
                 );
-                match door_controller.connect().await {
-                    Ok(_) => {
-                        debug!("Successfully connected to door controller");
-                    }
-                    Err(e) => match e {
-                        btleplug::Error::DeviceNotFound => {
-                            return Err(eyre!("Cannot connect to door controller, ensure power is on (engine key position)"))
+                let mut tries = 0;
+                loop {
+                    tries += 1;
+                    match door_controller.connect().await {
+                        Ok(_) => {
+                            debug!("Successfully connected to door controller");
+                            break;
                         }
-                        _ => return Err(e.into()),
-                    },
+                        Err(e) => match e {
+                            btleplug::Error::DeviceNotFound
+                            | btleplug::Error::NotConnected => {
+                                error!("Cannot connect to door controller");
+                                if tries < 10 {
+                                    sleep(Duration::from_secs(1)).await;
+                                    continue;
+                                } else {
+                                    return Err(eyre!("Cannot connect to door controller, ensure power is on (engine key position)"));
+                                }
+                            }
+                            _ => return Err(e.into()),
+                        },
+                    };
                 }
-
-                let needed_char = match command {
-                    DoorControllerCommand::OtaEnter
-                    | DoorControllerCommand::OtaConfirm => {
-                        schema::DOOR_OTA_CHAR
-                    }
-                    DoorControllerCommand::Lock
-                    | DoorControllerCommand::Unlock => schema::DOOR_LOCK_CHAR,
-                    DoorControllerCommand::WindowLeftUp
-                    | DoorControllerCommand::WindowLeftDown => {
-                        schema::DOOR_WINDOW_LEFT_CHAR
-                    }
-                    DoorControllerCommand::WindowRightUp
-                    | DoorControllerCommand::WindowRightDown => {
-                        schema::DOOR_WINDOW_RIGHT_CHAR
-                    }
-                };
-                let char = door_controller.characteristics().iter().find(|c| c.uuid == needed_char).cloned().ok_or(eyre!("Door controller is missing characteristic for {command:?}: {needed_char}"))?;
-                let command: u8 = match command {
-                    DoorControllerCommand::Lock
-                    | DoorControllerCommand::WindowLeftUp
-                    | DoorControllerCommand::WindowRightUp => 0,
-                    DoorControllerCommand::Unlock
-                    | DoorControllerCommand::WindowLeftDown
-                    | DoorControllerCommand::WindowRightDown
-                    | DoorControllerCommand::OtaEnter => 1,
-                    DoorControllerCommand::OtaConfirm => 2,
-                };
-                door_controller
-                    .write(&char, &[command], WriteType::WithResponse)
-                    .await?;
             }
+
+            let needed_char = match command {
+                DoorControllerCommand::OtaEnter
+                | DoorControllerCommand::OtaConfirm => schema::DOOR_OTA_CHAR,
+                DoorControllerCommand::Lock | DoorControllerCommand::Unlock => {
+                    schema::DOOR_LOCK_CHAR
+                }
+                DoorControllerCommand::WindowLeftUp
+                | DoorControllerCommand::WindowLeftDown => {
+                    schema::DOOR_WINDOW_LEFT_CHAR
+                }
+                DoorControllerCommand::WindowRightUp
+                | DoorControllerCommand::WindowRightDown => {
+                    schema::DOOR_WINDOW_RIGHT_CHAR
+                }
+            };
+            let char = door_controller.characteristics().iter().find(|c| c.uuid == needed_char).cloned().ok_or(eyre!("Door controller is missing characteristic for {command:?}: {needed_char}"))?;
+            let command: u8 = match command {
+                DoorControllerCommand::Lock
+                | DoorControllerCommand::WindowLeftUp
+                | DoorControllerCommand::WindowRightUp => 0,
+                DoorControllerCommand::Unlock
+                | DoorControllerCommand::WindowLeftDown
+                | DoorControllerCommand::WindowRightDown
+                | DoorControllerCommand::OtaEnter => 1,
+                DoorControllerCommand::OtaConfirm => 2,
+            };
+            info!("Writing {command} to characteristic {}", char.uuid);
+            door_controller
+                .write(&char, &[command], WriteType::WithResponse)
+                .await?;
         }
         None => {
             warn!("Door controller not found, cannot perform command: {command:?}")
