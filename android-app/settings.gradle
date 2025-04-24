@@ -7,12 +7,14 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google()
         mavenCentral()
     }
 }
 
-rootProject.name = "Rust App"
+include ':droidplug'
+project(':droidplug').projectDir = new File('btleplug/src/droidplug/java')
+rootProject.name = "Car Remote"
 include ':app'

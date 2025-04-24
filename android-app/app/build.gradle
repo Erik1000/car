@@ -1,5 +1,5 @@
 plugins {
-    id 'com.android.application' version '8.5.2'
+    id 'com.android.application' version '8.9.2'
     id 'org.mozilla.rust-android-gradle.rust-android' version '0.9.3'
 }
 
@@ -41,7 +41,8 @@ dependencies {
     //implementation 'io.github.gedgygedgy.rust:jni-utils:0.1.0'
     // already included in droidplug build
     //implementation fileTree(dir: '../target/debug/java/libs', include: ['*.aar', '*.jar'], exclude: [])
-    implementation files('../btleplug/src/droidplug/java/build/outputs/aar/droidplug-release.aar')
+    //implementation files('../btleplug/src/droidplug/java/build/outputs/aar/droidplug-release.aar')
+    implementation project(':droidplug')
 
 }
 
