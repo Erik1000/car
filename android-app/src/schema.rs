@@ -13,10 +13,7 @@ pub const DOOR_SERVICE_UUID: Uuid =
 /// 0 lock close, 1 lock open
 pub const DOOR_LOCK_CHAR: Uuid =
     Uuid::from_u128(0x446f5ef8e88940988444e82331c92339);
-/// 1 enter ota, 2 set ota valid
-pub const DOOR_OTA_CHAR: Uuid =
-    Uuid::from_u128(0xe32a319fcfa44838aac359fde6058ee1);
-/// 0 window up, 1 window down
+// 0 window up, 1 window down
 pub const DOOR_WINDOW_LEFT_CHAR: Uuid =
     Uuid::from_u128(0xb163c9c8b1ac445a8232b7b462bf6b91);
 /// 0 window up, 1 window down
@@ -31,8 +28,6 @@ pub enum Command {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DoorControllerCommand {
-    OtaEnter,
-    OtaConfirm,
     Lock,
     Unlock,
     WindowLeftUp,

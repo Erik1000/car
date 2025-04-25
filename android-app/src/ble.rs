@@ -118,8 +118,6 @@ async fn handle_door_command(
             }
 
             let needed_char = match command {
-                DoorControllerCommand::OtaEnter
-                | DoorControllerCommand::OtaConfirm => schema::DOOR_OTA_CHAR,
                 DoorControllerCommand::Lock | DoorControllerCommand::Unlock => {
                     schema::DOOR_LOCK_CHAR
                 }
@@ -139,9 +137,7 @@ async fn handle_door_command(
                 | DoorControllerCommand::WindowRightUp => 0,
                 DoorControllerCommand::Unlock
                 | DoorControllerCommand::WindowLeftDown
-                | DoorControllerCommand::WindowRightDown
-                | DoorControllerCommand::OtaEnter => 1,
-                DoorControllerCommand::OtaConfirm => 2,
+                | DoorControllerCommand::WindowRightDown => 1,
             };
             info!("Writing {command} to characteristic {}", char.uuid);
             door_controller

@@ -52,12 +52,6 @@ pub async fn enable_engine_for_door_controller(
                     | DoorControllerCommand::WindowLeftUp
                     | DoorControllerCommand::WindowRightDown
                     | DoorControllerCommand::WindowRightUp => 10,
-                    DoorControllerCommand::OtaConfirm
-                    | DoorControllerCommand::OtaEnter => {
-                        return Err(eyre!(
-                        "OTA update requires manual engine state set to engine"
-                    ));
-                    }
                 });
                 ble_sender.send(Command::DoorController(door_command))?;
                 // hold the engine in state `engine` because the door controller got no power otherwise
@@ -131,16 +125,6 @@ pub async fn listen(
                         DoorControllerCommand::WindowRightUp,
                     )
                     .await
-                }
-                "ota_enter" => {
-                    ble_sender.send(Command::DoorController(
-                        DoorControllerCommand::OtaEnter,
-                    ))?;
-                }
-                "ota_confirm" => {
-                    ble_sender.send(Command::DoorController(
-                        DoorControllerCommand::OtaConfirm,
-                    ))?;
                 }
                 _ => {
                     warn!("Received invalid command via sms: {}", sms.message)
