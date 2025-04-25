@@ -4,13 +4,10 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Intent;
-import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
-import com.erik_tesar.car.remote.R;
 
 public class RustService extends Service {
     private static final String CHANNEL_ID = "RustServiceChannel";
@@ -70,11 +67,5 @@ public class RustService extends Service {
                 .setSmallIcon(R.mipmap.ic_launcher).setOngoing(true);
 
         return builder.build();
-    }
-
-    class Response {
-        public void answer(int res) {
-            Log.i("Res", "Got answer non static " + res);
-        }
     }
 }

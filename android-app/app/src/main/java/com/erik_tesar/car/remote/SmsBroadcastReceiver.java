@@ -8,8 +8,7 @@ import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.telephony.SmsMessage;
-
-import java.util.Objects;
+import android.util.Log;
 
 public class SmsBroadcastReceiver extends BroadcastReceiver {
     public static final String TAG = "SMS";
@@ -28,20 +27,24 @@ public class SmsBroadcastReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Bundle intentExtras = intent.getExtras();
-        if (intentExtras != null) {
-            Object[] sms = (Object[]) intentExtras.get(SMS_BUNDLE);
-            String smsMessageStr = "";
-            for (int i = 0; i < Objects.requireNonNull(sms).length; ++i) {
-                String format = intentExtras.getString("format");
-                SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) sms[i], format);
+        Log.i("SMS", "Received sms");
+        Bundle bundle = intent.getExtras();
+        StringBuilder fullMessage = new StringBuilder();
+        String senderNumber = null;
+        if (bundle != null) {
+            Object[] pdus = (Object[]) bundle.get("pdus");
+            if (pdus != null) {
+                for (Object pdu : pdus) {
+                    SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdu);
+                    if (senderNumber == null) {
+                        senderNumber = smsMessage.getDisplayOriginatingAddress();
+                    }
+                    fullMessage.append(smsMessage.getMessageBody());
 
-                String smsBody = smsMessage.getMessageBody();
-                String address = smsMessage.getOriginatingAddress();
-
-                recvSms(address, smsBody);
+                }
             }
+            Log.i("SMS", "Got sms: " + fullMessage.toString());
+            recvSms(senderNumber, fullMessage.toString());
         }
-
     }
 }
