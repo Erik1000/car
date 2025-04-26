@@ -1,7 +1,10 @@
 #![no_std]
 #![no_main]
 
+use core::ops::Range;
+
 use bt_hci::controller::ExternalController;
+use embassy_embedded_hal::adapter::BlockingAsync;
 use embassy_futures::join::join;
 use esp_backtrace as _;
 
@@ -10,6 +13,7 @@ use esp_hal::{
     rng::Trng,
     timer::{systimer::SystemTimer, timg::TimerGroup},
 };
+use esp_storage::FlashStorage;
 use esp_wifi::ble::controller::BleConnector;
 use key::{KeyListener, ENGINE_IN_PIN, IGNITION_IN_PIN, RADIO_IN_PIN};
 use relay::RelayHandler;
@@ -19,6 +23,9 @@ mod ble;
 mod key;
 mod relay;
 mod schema;
+
+// creds,    data, nvs,     0x110000, 0x2000,
+pub const MAP_FLASH_RANGE: Range<u32> = 0x110000..(0x110000 + 0x2000);
 
 #[esp_hal_embassy::main]
 async fn main(spawner: embassy_executor::Spawner) {
@@ -33,6 +40,9 @@ async fn main(spawner: embassy_executor::Spawner) {
 
     let systimer = SystemTimer::new(peripherals.SYSTIMER);
     esp_hal_embassy::init(systimer.alarm0);
+
+    let flash = FlashStorage::new();
+    let flash = BlockingAsync::new(flash);
 
     let bluetooth = peripherals.BT;
     let connector = BleConnector::new(&init, bluetooth);
@@ -52,7 +62,7 @@ async fn main(spawner: embassy_executor::Spawner) {
         ))
         .unwrap();
 
-    let (res, _) = join(ble::run(controller, trng), relay_handler.listen()).await;
+    let (res, _) = join(ble::run(controller, trng, flash), relay_handler.listen()).await;
     if let Err(e) = res {
         log::error!("BLE returned with error: {e:?}")
     }

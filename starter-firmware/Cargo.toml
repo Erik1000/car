@@ -28,7 +28,11 @@ esp-wifi = { version = "0.13", features = [
     "ble",
     #"async",
 ] }
-esp-storage = { version = "0.5", features = ["esp32c3"] }
+esp-storage = { version = "0.5", features = [
+    "esp32c3",
+    "nor-flash",
+    "storage",
+] }
 heapless = { version = "0.8.0", default-features = false }
 bt-hci = { version = "0.3" }
 esp-hal-embassy = { version = "0.7", features = ["esp32c3"] }
@@ -43,14 +47,27 @@ embassy-executor = { features = ["task-arena-size-65536"], version = "0.7" }
 #     "nightly",
 # ] } #features = ["task-arena-size-65536"] }
 #embassy-executor = { version = "0.6", features = ["nightly"] }
-trouble-host = { features = [
+trouble-host = { default-features = false, features = [
+    "log",
+    "peripheral",
+    "central",
+    "gatt",
+    "scan",
+    "derive",
     "security",
-], git = "https://github.com/embassy-rs/trouble.git", rev = "851909523dc4d18dde192732c2f9ae795269559b" }
+    "default-packet-pool",
+    "default-packet-pool-mtu-255",
+
+], git = "https://github.com/embassy-rs/trouble.git", rev = "644a418bed867d93e685442041ad6bc8b8f31681" }
 ciborium = { version = "0.2.2", default-features = false }
 serde = { version = "1", default-features = false, features = [
+
     "alloc",
     "derive",
 ] }
+sequential-storage = { version = "4.0.1", features = ["alloc"] }
+embassy-embedded-hal = "0.3.0"
+postcard = { version = "1.1.1", default-features = false, features = ["alloc"] }
 # [patch.crates-io]
 # # FIXME: latest crates.io release does not compile but main branch does, see <https://github.com/embassy-rs/embassy/issues/3438>
 # embassy-executor = { features = [
