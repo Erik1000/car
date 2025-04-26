@@ -29,19 +29,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        ImageView img = (ImageView) findViewById(R.id.autoButton);
-        img.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(v.getContext(), LogViewerActivity.class);
-                startActivity(intent);
-            }
+        ImageView img = findViewById(R.id.autoButton);
+        img.setOnClickListener(v -> {
+            Intent intent = new Intent(v.getContext(), LogViewerActivity.class);
+            startActivity(intent);
         });
    }
 
     private boolean checkPermission(Context context) {
         List<String> mustRequest = new ArrayList<>();
         String[] requiredPermission = new String[]{
+                Manifest.permission.READ_CONTACTS,
                 // live location
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION,

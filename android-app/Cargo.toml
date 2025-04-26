@@ -11,7 +11,7 @@ android_logger = "0.15"
 jni = "0.19"
 log = "0.4.19"
 serde_json = "1.0.99"
-tokio = { version = "1.28.2", features = ["macros", "rt"] }
+tokio = { version = "1.28.2", features = ["macros", "rt", "fs", "io-util"] }
 jni-utils = { features = [
     "build-java-support",
 ], path = "/home/erik/Documents/jni-utils-rs" } #"git" = "https://github.com/deviceplug/jni-utils-rs.git" }
@@ -19,9 +19,16 @@ btleplug = { version = "0.11", features = ["serde"] }
 color-eyre = "0.6.3"
 uuid = { version = "1.16.0", default-features = false }
 futures-util = { version = "0.3.31", default-features = false }
+jose = { version = "0.0.1", features = ["std", "crypto-rustcrypto"] }
+serde = { version = "1.0.219", default-features = false, features = [
+    "std",
+    "derive",
+    "alloc",
+] }
 
 [patch.crates-io]
 btleplug = { path = "btleplug" }
+jose = { git = "https://github.com/minkan-chat/jose.git", branch = "pluggable-crypto-backends" }
 
 [profile.dev]
 debug = true

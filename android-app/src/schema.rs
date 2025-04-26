@@ -20,13 +20,15 @@ pub const DOOR_WINDOW_LEFT_CHAR: Uuid =
 pub const DOOR_WINDOW_RIGHT_CHAR: Uuid =
     Uuid::from_u128(0x8f738eeebbb74cce8b82726a56532bdc);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, Clone)]
+#[serde(untagged)]
 pub enum Command {
     DoorController(DoorControllerCommand),
     Engine(EngineCommand),
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
 pub enum DoorControllerCommand {
     Lock,
     Unlock,
@@ -36,7 +38,8 @@ pub enum DoorControllerCommand {
     WindowRightDown,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EngineCommand {
     Off,
     Radio,
