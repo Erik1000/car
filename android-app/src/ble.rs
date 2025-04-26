@@ -38,7 +38,7 @@ pub async fn init(
     JoinHandle<Result<Infallible, color_eyre::Report>>,
     JoinHandle<Result<Infallible, color_eyre::Report>>,
 )> {
-    btleplug::platform::init(&env)?;
+    btleplug::platform::init(env)?;
 
     let (sender, receiver) = unbounded_channel::<Command>();
 
@@ -157,10 +157,19 @@ async fn handle_engine_command(
     match STARTER.get() {
         Some(starter) => {
             if !starter.is_connected().await? {
-                warn!("Starter not connected, trying to connect...");
-                // early exit here because starter is expected to always be connected
-                starter.connect().await?;
+                'retry: for _ in 0..10 {
+                    warn!("Starter not connected, trying to connect...");
+                    // early exit here because starter is expected to always be connected
+                    match starter.connect().await {
+                        Ok(_) => break 'retry,
+                        Err(_) => {
+                            warn!("Reconnect to starter failed, retrying in 1 sec");
+                            sleep(Duration::from_secs(1)).await;
+                        }
+                    }
+                }
             }
+
             let char = starter
                 .characteristics()
                 .iter()

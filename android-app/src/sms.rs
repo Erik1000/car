@@ -98,13 +98,19 @@ pub async fn enable_engine_for_door_controller(
             "hold engine failed",
             async move {
                 let restore_state = ENGINE_STATUS.read().await.to_owned();
+                let already_in_engine = restore_state == EngineCommand::Engine;
+
                 info!("Enable engine for door controller");
-                ble_sender.send(Command::Engine(EngineCommand::Engine))?;
-                // give the esp in the door time to boot
-                sleep(Duration::from_secs(5)).await;
+
+                // if already in engine then we can already use it
+                if !already_in_engine {
+                    ble_sender.send(Command::Engine(EngineCommand::Engine))?;
+                    // give the esp in the door time to boot
+                    sleep(Duration::from_secs(1)).await;
+                }
                 let hold_engine = Duration::from_secs(match door_command {
                     DoorControllerCommand::Lock
-                    | DoorControllerCommand::Unlock => 10,
+                    | DoorControllerCommand::Unlock => 3,
                     DoorControllerCommand::WindowLeftDown
                     | DoorControllerCommand::WindowLeftUp
                     | DoorControllerCommand::WindowRightDown
@@ -113,14 +119,17 @@ pub async fn enable_engine_for_door_controller(
                 ble_sender.send(Command::DoorController(door_command))?;
                 // hold the engine in state `engine` because the door controller got no power otherwise
                 sleep(hold_engine).await;
-                info!("Restoring Engine state to {restore_state:?}");
-                ble_sender.send(Command::Engine(restore_state))?;
+                if !already_in_engine {
+                    info!("Restoring Engine state to {restore_state:?}");
+                    ble_sender.send(Command::Engine(restore_state))?;
+                }
                 Result::<_, color_eyre::Report>::Ok(())
             }
             .await,
         )
     });
 }
+
 pub async fn listen(
     ble_sender: UnboundedSender<Command>,
     mut sms_receiver: UnboundedReceiver<Sms>,
