@@ -29,44 +29,61 @@ esp-hal = { version = "1.0.0-beta.0", features = [
 ] }
 esp-println = { version = "0.13", features = ["esp32", "log"] }
 esp-alloc = { version = "0.7.0" }
-esp-storage = { version = "0.5", features = ["esp32"] }
+esp-storage = { version = "0.5", features = [
+    "esp32",
+    "nor-flash",
+    "storage",
+] }
 embedded-io = "0.6.1"
 esp-wifi = { version = "0.13", features = [
     "esp32",
-    #"phy-enable-usb",
-    #"utils",
     "ble",
-    #"async",
 ] }
 heapless = { version = "0.8.0", default-features = false }
 bt-hci = { version = "0.3" }
 esp-hal-embassy = { version = "0.7", features = ["esp32"] }
 embassy-futures = "0.1.1"
-embassy-time = { version = "0.4", features = ["generic-queue-8"] }
+embassy-time = { version = "0.4", features = [] }
 static_cell = { version = "2", features = ["nightly"] }
 embassy-sync = { version = "0.6", features = [] }
-embassy-executor = { features = ["task-arena-size-20480"], version = "0.7" }
+embassy-executor = { features = ["nightly"], version = "0.7" }
 anyhow = { version = "1.0.98", default-features = false }
 
-trouble-host = { features = [
+sequential-storage = { version = "4.0.1", features = ["alloc"] }
+embassy-embedded-hal = "0.3.0"
+postcard = { version = "1.1.1", default-features = false, features = ["alloc"] }
+
+trouble-host = { default-features = false, features = [
+    "log",
+    "peripheral",
+    "central",
+    "gatt",
+    "scan",
+    "derive",
     "security",
-], git = "https://github.com/embassy-rs/trouble.git", rev = "851909523dc4d18dde192732c2f9ae795269559b" }
+    "default-packet-pool",
+    "default-packet-pool-mtu-255",
+
+], git = "https://github.com/embassy-rs/trouble.git", rev = "ec053f9dc294dd8d3c85e2a8fec82b6e359c68ff" }
+serde = { version = "1.0.219", default-features = false, features = ["alloc", "derive"] }
 
 [patch.crates-io]
 embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "eb6e22ab4dc355e1b81b4857515254d74432166a" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-storage = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ddbac7b12df85f6cccbc771d112d316ef3a6de26" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ddbac7b12df85f6cccbc771d112d316ef3a6de26" }
+esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ddbac7b12df85f6cccbc771d112d316ef3a6de26" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ddbac7b12df85f6cccbc771d112d316ef3a6de26" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ddbac7b12df85f6cccbc771d112d316ef3a6de26" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ddbac7b12df85f6cccbc771d112d316ef3a6de26" }
+esp-storage = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ddbac7b12df85f6cccbc771d112d316ef3a6de26" }
+
 
 
 [profile.dev]
 # Rust debug is too slow.
 # For debug builds always builds with some optimization
 opt-level = 3
+debug = true
 
 [profile.release]
 codegen-units    = 1     # LLVM can perform better optimizations using a single thread

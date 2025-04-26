@@ -59,7 +59,6 @@ trouble-host = { default-features = false, features = [
     "default-packet-pool-mtu-255",
 
 ], git = "https://github.com/embassy-rs/trouble.git", rev = "644a418bed867d93e685442041ad6bc8b8f31681" }
-ciborium = { version = "0.2.2", default-features = false }
 serde = { version = "1", default-features = false, features = [
 
     "alloc",

@@ -27,9 +27,6 @@ use crate::{
     MAP_FLASH_RANGE,
 };
 
-/// Size of L2CAP packets (ATT MTU is this - 4)
-const L2CAP_MTU: usize = 251;
-
 /// Max number of connections
 const CONNECTIONS_MAX: usize = 1;
 
@@ -65,12 +62,8 @@ pub async fn run<C: Controller>(
 ) -> Result<(), Error> {
     let address = Address::random(ADDRESS);
 
-    let mut resources: HostResources<
-        DefaultPacketPool,
-        CONNECTIONS_MAX,
-        L2CAP_CHANNELS_MAX,
-        L2CAP_MTU,
-    > = HostResources::new();
+    let mut resources: HostResources<DefaultPacketPool, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX> =
+        HostResources::new();
     let stack = trouble_host::new(controller, &mut resources)
         .set_random_address(address)
         .set_random_generator_seed(&mut rng);

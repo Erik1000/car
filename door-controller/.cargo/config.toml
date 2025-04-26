@@ -1,13 +1,11 @@
 [target.xtensa-esp32-none-elf]
-runner = "espflash flash --monitor --chip esp32"
+runner = "espflash flash --monitor --chip esp32 --partition-table=partitions.csv"
 
 [env]
-ESP_LOG="info"
+ESP_LOG = "info"
 
 [build]
-rustflags = [
-  "-C", "link-arg=-nostartfiles",
-]
+rustflags = ["-C", "link-arg=-nostartfiles", "-C", "force-frame-pointers"]
 
 target = "xtensa-esp32-none-elf"
 
