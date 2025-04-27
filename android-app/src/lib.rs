@@ -52,15 +52,16 @@ pub static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
 #[tokio::main(flavor = "current_thread")]
 async fn launch(env: JNIEnv<'_>) -> color_eyre::Result<()> {
     info!("Launched tokio!");
-    btleplug::platform::init(&env)?;
-    let (ble_sender, search, listen, update) = ble::init(&env).await?;
+    let (ble_sender, search, listen, update, events) = ble::init(&env).await?;
     let sms = sms::init(ble_sender).await?;
-    let (search, listen, update, sms) =
-        tokio::join!(search, listen, update, sms);
+    let (search, listen, update, sms, events) =
+    // FIXME: should be select to catch early returns e.g. because of panic
+        tokio::join!(search, listen, update, sms, events);
     search??;
     listen??;
     update??;
     sms??;
+    events??;
     Ok(())
 }
 

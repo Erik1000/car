@@ -34,7 +34,7 @@ use tokio::{
 };
 
 use crate::{
-    ble::ENGINE_STATUS,
+    ble::{try_reconnect_door_controller, ENGINE_STATUS},
     log_error,
     schema::{Command, DoorControllerCommand, EngineCommand},
 };
@@ -95,35 +95,39 @@ pub async fn enable_engine_for_door_controller(
 ) {
     tokio::spawn(async {
         log_error(
-            "hold engine failed",
+            "hold engine",
             async move {
                 let restore_state = ENGINE_STATUS.read().await.to_owned();
-                let already_in_engine = restore_state == EngineCommand::Engine;
+                let already_in_engine = matches!(restore_state, EngineCommand::Engine | EngineCommand::Ignition);
 
                 info!("Enable engine for door controller");
+                if !already_in_engine {
+                        ble_sender
+                            .send(Command::Engine(EngineCommand::Engine))?;
+                }
+
 
                 // if already in engine then we can already use it
-                if !already_in_engine {
-                    ble_sender.send(Command::Engine(EngineCommand::Engine))?;
-                    // give the esp in the door time to boot
-                    sleep(Duration::from_secs(1)).await;
+                if try_reconnect_door_controller().await {
+                    let hold_engine = Duration::from_secs(match door_command {
+                        DoorControllerCommand::Lock
+                        | DoorControllerCommand::Unlock => 3,
+                        DoorControllerCommand::WindowLeftDown
+                        | DoorControllerCommand::WindowLeftUp
+                        | DoorControllerCommand::WindowRightDown
+                        | DoorControllerCommand::WindowRightUp => 10,
+                    });
+                    ble_sender.send(Command::DoorController(door_command))?;
+                    // hold the engine in state `engine` because the door controller got no power otherwise
+                    sleep(hold_engine).await;
+                    if !already_in_engine {
+                        info!("Restoring Engine state to {restore_state:?}");
+                        ble_sender.send(Command::Engine(restore_state))?;
+                    }
+                    Ok(())
+                } else {
+                    Err(eyre!("Door controller not connected, cannot perform {door_command:?}"))
                 }
-                let hold_engine = Duration::from_secs(match door_command {
-                    DoorControllerCommand::Lock
-                    | DoorControllerCommand::Unlock => 3,
-                    DoorControllerCommand::WindowLeftDown
-                    | DoorControllerCommand::WindowLeftUp
-                    | DoorControllerCommand::WindowRightDown
-                    | DoorControllerCommand::WindowRightUp => 10,
-                });
-                ble_sender.send(Command::DoorController(door_command))?;
-                // hold the engine in state `engine` because the door controller got no power otherwise
-                sleep(hold_engine).await;
-                if !already_in_engine {
-                    info!("Restoring Engine state to {restore_state:?}");
-                    ble_sender.send(Command::Engine(restore_state))?;
-                }
-                Result::<_, color_eyre::Report>::Ok(())
             }
             .await,
         )
