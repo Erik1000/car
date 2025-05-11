@@ -9,13 +9,13 @@ use embassy_futures::join::join;
 use esp_backtrace as _;
 
 use esp_hal::{
-    gpio::GpioPin,
+    peripherals::{GPIO0, GPIO3, GPIO6},
     rng::Trng,
     timer::{systimer::SystemTimer, timg::TimerGroup},
 };
 use esp_storage::FlashStorage;
 use esp_wifi::ble::controller::BleConnector;
-use key::{KeyListener, ENGINE_IN_PIN, IGNITION_IN_PIN, RADIO_IN_PIN};
+use key::KeyListener;
 use relay::RelayHandler;
 extern crate alloc;
 
@@ -29,6 +29,7 @@ pub const MAP_FLASH_RANGE: Range<u32> = 0x110000..(0x110000 + 0x2000);
 
 #[esp_hal_embassy::main]
 async fn main(spawner: embassy_executor::Spawner) {
+    esp_backtrace::arch::backtrace();
     let peripherals = esp_hal::init(esp_hal::Config::default());
     esp_alloc::heap_allocator!(size: 72 * 1024);
     esp_println::logger::init_logger_from_env();
@@ -69,11 +70,13 @@ async fn main(spawner: embassy_executor::Spawner) {
 }
 
 #[embassy_executor::task]
-async fn key_task(
-    radio: GpioPin<'static, { RADIO_IN_PIN }>,
-    engine: GpioPin<'static, { ENGINE_IN_PIN }>,
-    ignition: GpioPin<'static, { IGNITION_IN_PIN }>,
-) {
+async fn key_task(radio: GPIO0<'static>, engine: GPIO3<'static>, ignition: GPIO6<'static>) {
     let mut key_listener = KeyListener::new(radio, engine, ignition);
     key_listener.listen().await;
+}
+
+#[no_mangle]
+extern "Rust" fn custom_halt() {
+    log::error!("Paniced, resetting...");
+    esp_hal::system::software_reset();
 }

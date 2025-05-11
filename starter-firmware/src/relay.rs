@@ -3,7 +3,10 @@ use core::convert::Infallible;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
-use esp_hal::gpio::{DriveMode, GpioPin, Level, Output, OutputConfig, OutputPin, Pull};
+use esp_hal::{
+    gpio::{DriveMode, Level, Output, OutputConfig, Pull},
+    peripherals::{GPIO10, GPIO20, GPIO21, GPIO7},
+};
 use log::{info, warn};
 
 use crate::{
@@ -55,10 +58,10 @@ pub struct RelayHandler<'p> {
 
 impl<'p> RelayHandler<'p> {
     pub fn new(
-        radio: GpioPin<'static, RADIO_OUT_PIN>,
-        engine: GpioPin<'static, ENGINE_OUT_PIN>,
-        engine_consumers: GpioPin<'static, ENGINE_CONSUMERS_OUT_PIN>,
-        ignition: GpioPin<'static, IGNITION_OUT_PIN>,
+        radio: GPIO10<'p>,
+        engine: GPIO21<'p>,
+        engine_consumers: GPIO7<'p>,
+        ignition: GPIO20<'p>,
     ) -> Self {
         let config = OutputConfig::default()
             .with_pull(Pull::None)
@@ -222,10 +225,7 @@ impl<'d, const GPIO: u8> From<Output<'d>> for Relay<'d, GPIO> {
 }
 
 #[allow(unused)]
-impl<const GPIO: u8> Relay<'_, GPIO>
-where
-    GpioPin<'static, GPIO>: OutputPin,
-{
+impl<const GPIO: u8> Relay<'_, GPIO> {
     fn state(&self) -> RelayState {
         match self.pin.is_set_high() {
             true => RelayState::Powered,

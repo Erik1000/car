@@ -1,7 +1,10 @@
 use embassy_futures::join::join3;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
-use esp_hal::gpio::{GpioPin, Input, InputConfig, InputPin, Level, Pull};
+use esp_hal::{
+    gpio::{AnyPin, Input, InputConfig, Level, Pin, Pull},
+    peripherals::{GPIO0, GPIO3, GPIO6},
+};
 use log::{debug, trace, warn};
 
 use crate::schema::KeyPosition;
@@ -24,15 +27,11 @@ pub struct KeyListener<'d> {
 }
 
 impl<'d> KeyListener<'d> {
-    pub fn new(
-        radio: GpioPin<'d, RADIO_IN_PIN>,
-        engine: GpioPin<'d, ENGINE_IN_PIN>,
-        ignition: GpioPin<'d, IGNITION_IN_PIN>,
-    ) -> Self {
+    pub fn new(radio: GPIO0<'d>, engine: GPIO3<'d>, ignition: GPIO6<'d>) -> Self {
         Self {
-            radio: radio.into(),
-            engine: engine.into(),
-            ignition: ignition.into(),
+            radio: AnyPin::from(radio).into(),
+            engine: AnyPin::from(engine).into(),
+            ignition: AnyPin::from(ignition).into(),
             last_position: KeyPosition::Off,
             off_overwrite_count: 0,
             last_signal: KeyPosition::Off,
@@ -110,11 +109,13 @@ impl<'d> KeyListener<'d> {
     }
 }
 
-impl<'a, const P: u8> From<GpioPin<'a, P>> for Debounced<'a, P>
-where
-    GpioPin<'a, P>: InputPin,
-{
-    fn from(pin: GpioPin<'a, P>) -> Self {
+impl<'a, const P: u8> From<AnyPin<'a>> for Debounced<'a, P> {
+    fn from(pin: AnyPin<'a>) -> Self {
+        assert_eq!(
+            pin.number(),
+            P,
+            "expected pin number and pin does not match"
+        );
         // uses some default values
         Self::new(pin, 20, Duration::from_millis(10))
     }
@@ -128,11 +129,14 @@ struct Debounced<'d, const P: u8> {
     interval: Duration,
 }
 
-impl<'d, const P: u8> Debounced<'d, P>
-where
-    GpioPin<'d, P>: InputPin,
-{
-    pub fn new(pin: GpioPin<'d, P>, threshold: u8, interval: Duration) -> Self {
+impl<'d, const P: u8> Debounced<'d, P> {
+    pub fn new(pin: impl Into<AnyPin<'d>>, threshold: u8, interval: Duration) -> Self {
+        let pin = pin.into();
+        assert_eq!(
+            pin.number(),
+            P,
+            "expected pin number and pin number do not match"
+        );
         Debounced {
             pin: Input::new(pin, InputConfig::default().with_pull(Pull::Down)),
             previous_state: Level::Low,

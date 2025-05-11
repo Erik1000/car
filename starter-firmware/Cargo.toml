@@ -11,13 +11,21 @@ esp-backtrace = { version = "0.15", features = [
     "exception-handler",
     "panic-handler",
     "println",
+    "custom-halt",
 ] }
 esp-hal = { version = "1.0.0-beta.0", features = [
     "esp32c3",
     "unstable",
-    "log",
+    "log-04",
 ] }
-esp-println = { version = "0.13", features = ["esp32c3", "log"] }
+
+esp-println = { version = "0.13", default-features = false, features = [
+    "esp32c3",
+    "log-04",
+    "colors",
+    "critical-section",
+    "uart",
+] }
 log = { version = "0.4" }
 esp-alloc = { version = "0.7.0" }
 embedded-io = "0.6.1"
@@ -28,11 +36,7 @@ esp-wifi = { version = "0.13", features = [
     "ble",
     #"async",
 ] }
-esp-storage = { version = "0.5", features = [
-    "esp32c3",
-    "nor-flash",
-    "storage",
-] }
+esp-storage = { version = "0.5", features = ["esp32c3"] }
 heapless = { version = "0.8.0", default-features = false }
 bt-hci = { version = "0.3" }
 esp-hal-embassy = { version = "0.7", features = ["esp32c3"] }
@@ -58,7 +62,7 @@ trouble-host = { default-features = false, features = [
     "default-packet-pool",
     "default-packet-pool-mtu-255",
 
-], git = "https://github.com/embassy-rs/trouble.git", rev = "644a418bed867d93e685442041ad6bc8b8f31681" }
+], git = "https://github.com/embassy-rs/trouble.git", rev = "46314360df382041097ef769e69065c864020a74" }
 serde = { version = "1", default-features = false, features = [
 
     "alloc",
@@ -73,14 +77,14 @@ postcard = { version = "1.1.1", default-features = false, features = ["alloc"] }
 # ], git = "https://github.com/embassy-rs/embassy.git", rev = "b31648f2e59a68748e1c0f1408d1658a2e5e6a08" }
 
 [patch.crates-io]
-embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "eb6e22ab4dc355e1b81b4857515254d74432166a" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
-esp-storage = { git = "https://github.com/esp-rs/esp-hal.git", rev = "8f0c5179d946d292652443a30e7172255886b99d" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "f9f20ae2174cb26d0f8926207d179041cfec2d2e" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "7b7844a85516d0a5c00df6b0e5f5a251abf323bb" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "7b7844a85516d0a5c00df6b0e5f5a251abf323bb" }
+esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "7b7844a85516d0a5c00df6b0e5f5a251abf323bb" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "7b7844a85516d0a5c00df6b0e5f5a251abf323bb" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "7b7844a85516d0a5c00df6b0e5f5a251abf323bb" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "7b7844a85516d0a5c00df6b0e5f5a251abf323bb" }
+esp-storage = { git = "https://github.com/esp-rs/esp-hal.git", rev = "7b7844a85516d0a5c00df6b0e5f5a251abf323bb" }
 
 [profile.dev]
 # Rust debug is too slow.
