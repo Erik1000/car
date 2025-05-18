@@ -103,3 +103,9 @@ async fn main(_spawner: embassy_executor::Spawner) {
         Err(e) => log::error!("BLE returned with error: {e:#?}"),
     }
 }
+
+#[no_mangle]
+extern "Rust" fn custom_halt() {
+    log::error!("Paniced, resetting...");
+    esp_hal::system::software_reset();
+}
