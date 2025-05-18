@@ -64,7 +64,7 @@ impl<'p> RelayHandler<'p> {
         ignition: GPIO20<'p>,
     ) -> Self {
         let config = OutputConfig::default()
-            .with_pull(Pull::None)
+            .with_pull(Pull::Down)
             .with_drive_mode(DriveMode::PushPull);
         let radio: Output<'p> = Output::new(radio, Level::Low, config);
         let engine: Output<'p> = Output::new(engine, Level::Low, config);

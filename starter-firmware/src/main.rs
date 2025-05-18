@@ -65,7 +65,8 @@ async fn main(spawner: embassy_executor::Spawner) {
 
     let (res, _) = join(ble::run(controller, trng, flash), relay_handler.listen()).await;
     if let Err(e) = res {
-        log::error!("BLE returned with error: {e:?}")
+        log::error!("BLE returned with error: {e:?}");
+        panic!("{e:?}")
     }
 }
 
