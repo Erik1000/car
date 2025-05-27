@@ -1,6 +1,6 @@
-use std::sync::OnceLock;
+use std::convert::Infallible;
 
-use jni::{JNIEnv, JavaVM};
+use jni::JNIEnv;
 use jni_utils as _;
 
 #[macro_use]
@@ -37,32 +37,39 @@ pub mod android {
             Ok(_) => log::info!("Finished ok"),
             Err(e) => log::error!("Return error: {e:#?}",),
         };
-
-        // let res: jint = 4;
-        // //env.call_method(callback, "factCallback", "(I)V", &[res.into()])
-        // match env.call_method(this, "factCallback", "(I)V", &[res.into()]) {
-        //     Ok(_) => info!("Worked!"),
-        //     Err(e) => error!("Failed: {e:?}"),
-        // }
     }
 }
 
-pub static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
-
 #[tokio::main(flavor = "current_thread")]
-async fn launch(env: JNIEnv<'_>) -> color_eyre::Result<()> {
+async fn launch(env: JNIEnv<'_>) -> color_eyre::Result<Infallible> {
     info!("Launched tokio!");
     let (ble_sender, search, listen, update, events) = ble::init(&env).await?;
     let sms = sms::init(ble_sender).await?;
-    let (search, listen, update, sms, events) =
-    // FIXME: should be select to catch early returns e.g. because of panic
-        tokio::join!(search, listen, update, sms, events);
-    search??;
-    listen??;
-    update??;
-    sms??;
-    events??;
-    Ok(())
+
+    let e = tokio::select! {
+        Err(e) = search => {
+            error!("Search error: {e:#?}");
+            e
+        },
+        Err(e) = listen => {
+            error!("Listen error: {e:#?}");
+            e
+
+        },
+        Err(e) = update => {
+            error!("Update error: {e:#?}");
+            e
+        },
+        Err(e) = sms => {
+            error!("SMS error: {e:#?}");
+            e
+        },
+        Err(e) = events => {
+            error!("Event error: {e:#?}");
+            e
+        },
+    };
+    Err(e.into())
 }
 
 pub fn log_error<T>(
